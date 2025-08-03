@@ -1,6 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddr};
-use std::pin::Pin;
-use tokio::{net::TcpStream, sync::oneshot::Receiver};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{WebSocketStream, accept_async};
 
 use crate::socket::ListenerError;
@@ -15,11 +14,8 @@ pub struct WebSocketListener {
     listener: tokio::net::TcpListener,
 }
 
-type HandlerFn = fn(tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>) -> HandlerFuture;
-type HandlerFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
-
 impl WebSocketListener {
-    pub async fn bind(local_addr: &SocketAddr) -> Result<Self, ListenerError> {
+    pub async fn listen(local_addr: &SocketAddr) -> Result<Self, ListenerError> {
         let listener = tokio::net::TcpListener::bind(&local_addr).await?;
         let upnp_manager =
             init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Tcp).await?;
@@ -30,38 +26,10 @@ impl WebSocketListener {
         })
     }
 
-    pub async fn accept(
-        &self,
-    ) -> Result<(WebSocketStream<TcpStream>, SocketAddr), tokio_tungstenite::tungstenite::Error>
-    {
+    pub async fn accept(&self) -> Result<(WebSocketStream<TcpStream>, SocketAddr), ListenerError> {
         let (stream, addr) = self.listener.accept().await?;
         let stream = accept_async(stream).await?;
         Ok((stream, addr))
-    }
-
-    pub async fn host(self, handler: HandlerFn, mut shutdown_rx: Receiver<()>) {
-        loop {
-            tokio::select! {
-                conn = async {
-                        self.accept().await
-                } => {
-                    match conn {
-                        Ok((stream, addr)) => {
-                            log::debug!("Accepted new peer: {}", addr);
-                            tokio::spawn(async move {handler(stream).await;});
-                        }
-                        Err(e) => {
-                            log::debug!("Exit accept loop: {}", e);
-                            break;
-                        }
-                    }
-                },
-                _ = &mut shutdown_rx => {
-                    log::debug!("Shutdown signal received. Shutting down...");
-                    break;
-                }
-            }
-        }
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
@@ -71,7 +39,9 @@ impl WebSocketListener {
     pub async fn get_external_addr(&self) -> Result<Ipv4Addr, ListenerError> {
         match external_ip::get_ipv4().await {
             Some(addr) => Ok(addr),
-            None => Err(ListenerError::Socket("failed to get external IP".into())),
+            None => Err(ListenerError::Socket(
+                "Failed to get external address".into(),
+            )),
         }
     }
 }

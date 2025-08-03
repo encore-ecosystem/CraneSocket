@@ -42,10 +42,10 @@ impl TcpConnection {
             |addr| addr.to_string(),
         );
 
-        match self.stream.write_all(buf).await {
-            Ok(()) => {
-                debug!("Sent {} bytes to peer {}", buf.len(), peer_addr);
-                Ok(buf.len())
+        match self.stream.write(buf).await {
+            Ok(bytes_sent) => {
+                debug!("Sent {} bytes to peer {}", bytes_sent, peer_addr);
+                Ok(bytes_sent)
             }
             Err(e) => {
                 error!("Failed to send to peer {}: {}", peer_addr, e);

@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -21,13 +20,10 @@ pub struct WebSocketTransport {
 
 impl WebSocketTransport {
     pub async fn new(
-        stream: TcpStream,
+        ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
         peer_id: String,
         shutdown_tx: broadcast::Sender<()>,
     ) -> Result<Self, ProxyServerError> {
-        let ws_stream = tokio_tungstenite::accept_async(stream)
-            .await
-            .map_err(|e| ProxyServerError::Transport(e.to_string()))?;
         let (ws_sender, ws_receiver) = ws_stream.split();
 
         let (send_tx, send_rx) = mpsc::channel::<TransportMessage>(100);

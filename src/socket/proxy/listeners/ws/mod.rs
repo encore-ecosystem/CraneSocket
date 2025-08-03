@@ -1,16 +1,8 @@
-use log::debug;
 use std::net::SocketAddr;
-use tokio_tungstenite::connect_async;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{WebSocketStream, accept_async};
 
-use crate::socket::{
-    ListenerError,
-    proxy::{
-        WebSocketConnection,
-        listeners::ws::utils::{register, wait_for_another_peer},
-    },
-};
-
-mod utils;
+use crate::socket::ListenerError;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -19,19 +11,18 @@ pub struct WebSocketListener {
 }
 
 impl WebSocketListener {
-    pub async fn listen(server_addr: &SocketAddr) -> Result<WebSocketConnection, ListenerError> {
-        let (mut server_conn, _response) = connect_async(format!("ws://{}", server_addr)).await?;
-        debug!("Connected to proxy server");
+    pub async fn listen(addr: &SocketAddr) -> Result<Self, ListenerError> {
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        Ok(Self { listener })
+    }
 
-        let room_id = register(&mut server_conn).await?;
-        debug!("Created a room on proxy server");
-
-        println!("\n\n{}\n\n", room_id);
-
-        wait_for_another_peer(&mut server_conn).await?;
-        debug!("Another peer successfully connected to proxy server");
-
-        Ok(WebSocketConnection::new(server_conn))
+    pub async fn accept(
+        &self,
+    ) -> Result<(WebSocketStream<TcpStream>, SocketAddr), ListenerError>
+    {
+        let (stream, addr) = self.listener.accept().await?;
+        let stream = accept_async(stream).await?;
+        Ok((stream, addr))
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {

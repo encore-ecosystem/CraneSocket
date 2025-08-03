@@ -30,7 +30,7 @@ pub async fn send<
                 .await?)
         }
         Message::Close(frame) => Ok(stream.send(TungsteniteMessage::Close(frame)).await?),
-        _ => Err(ConnectionError::UnexpectedMessage),
+        msg => Err(ConnectionError::UnexpectedMessage(format!("{:?}", msg))),
     }
 }
 
@@ -48,7 +48,7 @@ pub async fn next<
                         ServerTextMessage::ClientLeft => Ok(Message::PeerDisconnected),
                         msg => {
                             debug!("Received unexpected message: {:?}", msg);
-                            Err(ConnectionError::UnexpectedMessage)
+                            Err(ConnectionError::UnexpectedMessage(format!("{:?}", msg)))
                         }
                     },
 
@@ -65,7 +65,7 @@ pub async fn next<
 
             msg => {
                 debug!("Received unexpected message: {}", msg);
-                Err(ConnectionError::UnexpectedMessage)
+                Err(ConnectionError::UnexpectedMessage(format!("{:?}", msg)))
             }
         },
         Err(e) => Err(ConnectionError::WebSocket(e)),

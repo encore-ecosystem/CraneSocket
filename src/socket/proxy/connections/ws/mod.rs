@@ -1,8 +1,8 @@
 use crate::socket::ConnectionError;
 use crate::socket::proxy::Message;
-use crate::socket::proxy::connections::ws::utils::join_room;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
+use log::debug;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
@@ -10,8 +10,10 @@ use tokio_tungstenite::{
     tungstenite::{Message as TungsteniteMessage, protocol::CloseFrame},
 };
 
-mod logic;
-mod utils;
+mod connection_logic;
+mod ws_logic;
+
+use connection_logic::*;
 
 pub struct WebSocketConnection {
     stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -22,7 +24,25 @@ impl WebSocketConnection {
         Self { stream }
     }
 
-    pub async fn connect(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
+    pub async fn create_room(
+        server_addr: &SocketAddr,
+    ) -> Result<(WebSocketConnection, String), ConnectionError> {
+        let (mut server_conn, _response) = connect_async(format!("ws://{}", server_addr)).await?;
+        debug!("Connected to proxy server");
+
+        let room_id = register(&mut server_conn).await?;
+        debug!("Created a room on proxy server");
+
+        Ok((WebSocketConnection::new(server_conn), room_id))
+    }
+
+    pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
+        wait_for_another_peer(&mut self.stream).await?;
+        debug!("Another peer successfully connected to proxy server");
+        Ok(())
+    }
+
+    pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
         let (mut server_conn, _response) = connect_async(format!("ws://{}", addr)).await?;
 
         join_room(&mut server_conn, room_id).await?;
@@ -32,12 +52,12 @@ impl WebSocketConnection {
     }
 
     pub async fn send(&mut self, msg: Message) -> Result<(), ConnectionError> {
-        logic::send(&mut self.stream, msg).await?;
+        ws_logic::send(&mut self.stream, msg).await?;
         Ok(())
     }
 
     pub async fn next(&mut self) -> Result<Message, ConnectionError> {
-        logic::next(&mut self.stream).await
+        ws_logic::next(&mut self.stream).await
     }
 
     pub async fn close(&mut self, frame: Option<CloseFrame>) -> Result<(), ConnectionError> {
@@ -57,6 +77,26 @@ impl WebSocketConnection {
             SplitSink::reunite(sender.sink, receiver.stream).map_err(|_| ConnectionError::Io)?;
         Ok(Self { stream })
     }
+
+    pub fn get_local_addr(&self) -> Result<SocketAddr, ConnectionError> {
+        let raw: &MaybeTlsStream<TcpStream> = self.stream.get_ref();
+        match raw {
+            MaybeTlsStream::Plain(stream) => Ok(stream.local_addr()?),
+            _ => Err(ConnectionError::Socket(std::io::Error::other(
+                "Unsupported stream type",
+            ))),
+        }
+    }
+
+    pub fn get_peer_addr(&self) -> Result<SocketAddr, ConnectionError> {
+        let raw: &MaybeTlsStream<TcpStream> = self.stream.get_ref();
+        match raw {
+            MaybeTlsStream::Plain(stream) => Ok(stream.peer_addr()?),
+            _ => Err(ConnectionError::Socket(std::io::Error::other(
+                "Unsupported stream type",
+            ))),
+        }
+    }
 }
 
 pub struct WebSocketSender {
@@ -65,7 +105,7 @@ pub struct WebSocketSender {
 
 impl WebSocketSender {
     pub async fn send(&mut self, msg: Message) -> Result<(), ConnectionError> {
-        logic::send(&mut self.sink, msg).await?;
+        ws_logic::send(&mut self.sink, msg).await?;
         Ok(())
     }
 }
@@ -76,6 +116,6 @@ pub struct WebSocketReceiver {
 
 impl WebSocketReceiver {
     pub async fn next(&mut self) -> Result<Message, ConnectionError> {
-        logic::next(&mut self.stream).await
+        ws_logic::next(&mut self.stream).await
     }
 }

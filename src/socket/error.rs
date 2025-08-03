@@ -34,10 +34,6 @@ pub enum ListenerError {
     SendResultError(#[from] SendResultError),
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
-    #[error("Timeout")]
-    Timeout,
-    #[error("UnexpectedClose")]
-    UnexpectedClose,
 }
 
 #[derive(Error, Debug)]
@@ -62,12 +58,16 @@ pub enum ConnectionError {
     Serialization,
     #[error("HolePunching Error: {0}")]
     SendResultError(#[from] SendResultError),
-    #[error("Unexpected Message")]
-    UnexpectedMessage,
+    #[error("Unexpected Message error: {0}")]
+    UnexpectedMessage(String),
     #[error("Room is unavailable")]
     UnavailableRoom,
     #[error("Proxy server error")]
     ProxyServer,
+    #[error("Timeout")]
+    Timeout,
+    #[error("UnexpectedClose")]
+    UnexpectedClose,
 }
 
 #[derive(Error, Debug)]

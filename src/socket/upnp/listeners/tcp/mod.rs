@@ -43,12 +43,12 @@ impl TcpListener {
                 } => {
                     match conn {
                         Ok((stream, _)) => {
-                            let peer = stream.peer_addr().expect("Connected streams should have a peer address");
+                            let peer = stream.peer_addr().expect("Connected streams must have a peer address");
                             log::debug!("Accepted new peer: {}", peer);
                             tokio::spawn(async move {handler(peer, stream).await;});
                         }
                         Err(e) => {
-                            log::debug!("Exit accept loop: {}", e);
+                            log::debug!("Exited accept loop: {}", e);
                             break;
                         }
                     }

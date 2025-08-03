@@ -2,7 +2,6 @@ use log::{error, info};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::TcpListener;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, broadcast};
 
@@ -10,7 +9,8 @@ use crate::server::common::Listener;
 use crate::server::error::ProxyServerError;
 use crate::server::message_handler::handle_message;
 use crate::server::transport::{TransportMessage, WebSocketTransport};
-use crate::socket::upnp::TcpListener as UPnPTcpListener;
+use crate::socket::proxy::WebSocketListener;
+use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
 
 pub mod common;
 pub mod constant;
@@ -49,14 +49,12 @@ impl ProxyServer {
         use_upnp: bool,
         mut shutdown_rx: Receiver<()>,
     ) -> Result<(), ProxyServerError> {
-        // start tcp listener
         let listener = match use_upnp {
-            true => Listener::UPnPTcpListener(UPnPTcpListener::bind(addr).await?),
-            false => Listener::TcpListener(TcpListener::bind(addr).await?),
+            true => Listener::UPnPWebSocketListener(UPnPWebSocketListener::listen(addr).await?),
+            false => Listener::WebSocketListener(WebSocketListener::listen(addr).await?),
         };
         info!("Proxy server started listening on {}", addr);
 
-        // start accept loop
         loop {
             tokio::select! {
                 _ = async {

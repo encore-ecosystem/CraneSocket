@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use log::debug;
 use tokio::{fs::File, io::AsyncWriteExt};
 use upnpsocket::socket::proxy::Message;
-use upnpsocket::socket::proxy::WebSocketListener;
+use upnpsocket::socket::proxy::WebSocketConnection;
 
 #[tokio::main]
 async fn main() {
@@ -11,7 +11,13 @@ async fn main() {
 
     let server_addr = "127.0.0.1:8000".parse().unwrap();
     log::debug!("Signaling server addr: {}", server_addr);
-    let mut ws_stream = WebSocketListener::listen(&server_addr).await.unwrap();
+    let (mut ws_stream, room_id) = WebSocketConnection::create_room(&server_addr)
+        .await
+        .unwrap();
+
+    println!("Room ID: {}", room_id);
+
+    ws_stream.wait_for_client().await.unwrap();
 
     let msg = ws_stream.next().await.unwrap();
     println!("msg: {}", msg.to_text().unwrap());

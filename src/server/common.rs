@@ -1,19 +1,23 @@
-use tokio::net::TcpListener;
-
-use crate::socket::ListenerError;
+use crate::socket::{ListenerError, proxy::WebSocketListener};
 
 pub enum Listener {
-    TcpListener(TcpListener),
-    UPnPTcpListener(crate::socket::upnp::TcpListener),
+    WebSocketListener(WebSocketListener),
+    UPnPWebSocketListener(crate::socket::upnp::WebSocketListener),
 }
 
 impl Listener {
     pub async fn accept(
         &self,
-    ) -> std::result::Result<(tokio::net::TcpStream, std::net::SocketAddr), ListenerError> {
+    ) -> std::result::Result<
+        (
+            tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+            std::net::SocketAddr,
+        ),
+        ListenerError,
+    > {
         match self {
-            Listener::TcpListener(listener) => listener.accept().await.map_err(ListenerError::Io),
-            Listener::UPnPTcpListener(listener) => listener.accept().await,
+            Listener::WebSocketListener(listener) => listener.accept().await,
+            Listener::UPnPWebSocketListener(listener) => listener.accept().await,
         }
     }
 }
