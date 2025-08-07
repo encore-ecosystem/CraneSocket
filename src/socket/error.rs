@@ -22,16 +22,12 @@ pub enum ListenerError {
     Config(String),
     #[error("WebSocket error: {0}")]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-    #[error("Serde error: {0}")]
-    SerdeSerialization(#[from] serde_json::Error),
     #[error("Serialization error")]
     Serialization,
     #[error("Unexpected Message error: {0}")]
     UnexpectedMessage(String),
     #[error("Resulting connection method is not supported")]
     CouldNotConnect,
-    #[error("HolePunching Error: {0}")]
-    SendResultError(#[from] SendResultError),
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 }
@@ -52,12 +48,8 @@ pub enum ConnectionError {
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
     #[error("IO Error")]
     Io,
-    #[error("Serde error: {0}")]
-    SerdeSerialization(#[from] serde_json::Error),
     #[error("Serialization error")]
     Serialization,
-    #[error("HolePunching Error: {0}")]
-    SendResultError(#[from] SendResultError),
     #[error("Unexpected Message error: {0}")]
     UnexpectedMessage(String),
     #[error("Room is unavailable")]
@@ -68,12 +60,4 @@ pub enum ConnectionError {
     Timeout,
     #[error("UnexpectedClose")]
     UnexpectedClose,
-}
-
-#[derive(Error, Debug)]
-pub enum SendResultError {
-    #[error("WebSocket error: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-    #[error("Serde error: {0}")]
-    Serde(#[from] serde_json::Error),
 }

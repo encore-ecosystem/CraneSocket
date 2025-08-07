@@ -17,8 +17,6 @@ pub enum ProxyServerError {
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
     #[error("Send Error: {0}")]
     Send(String),
-    #[error("SerializationError: {0}")]
-    Serialization(#[from] serde_json::Error),
     #[error("Operation not supported for this connection type")]
     UnsupportedOperation,
     #[error("IO Error")]

@@ -7,6 +7,8 @@ use tokio_tungstenite::tungstenite::{
     protocol::{CloseFrame, frame::Frame},
 };
 
+use crate::server::message::common::Tags;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServerMessage {
     #[serde(skip)]
@@ -41,10 +43,34 @@ impl fmt::Display for ServerMessage {
 impl From<TungsteniteMessage> for ServerMessage {
     fn from(msg: TungsteniteMessage) -> Self {
         match msg {
-            TungsteniteMessage::Text(text) => {
-                serde_json::from_str::<ServerMessage>(&text).unwrap_or(ServerMessage::Text(text))
+            TungsteniteMessage::Text(text) => ServerMessage::Text(text),
+            TungsteniteMessage::Binary(data) => {
+                if data.is_empty() {
+                    return ServerMessage::Binary(Bytes::new());
+                }
+
+                let tag = data[0];
+                let payload = data.slice(1..);
+
+                match tag {
+                    x if x == Tags::RoomCreated as u8 => {
+                        let s =
+                            String::from_utf8(payload.to_vec()).unwrap_or_else(|_| String::new());
+                        ServerMessage::RoomCreated(s)
+                    }
+                    x if x == Tags::JoinedSuccessfully as u8 => ServerMessage::JoinedSuccessfully,
+                    x if x == Tags::ClientJoined as u8 => ServerMessage::ClientJoined,
+                    x if x == Tags::ClientLeft as u8 => ServerMessage::ClientLeft,
+                    x if x == Tags::Error as u8 => {
+                        let s =
+                            String::from_utf8(payload.to_vec()).unwrap_or_else(|_| String::new());
+
+                        ServerMessage::Error(s)
+                    }
+                    x if x == Tags::Binary as u8 => ServerMessage::Binary(payload),
+                    _ => ServerMessage::Binary(data),
+                }
             }
-            TungsteniteMessage::Binary(data) => ServerMessage::Binary(data),
             TungsteniteMessage::Ping(data) => ServerMessage::Ping(data),
             TungsteniteMessage::Pong(data) => ServerMessage::Pong(data),
             TungsteniteMessage::Close(frame) => ServerMessage::Close(frame),
@@ -57,14 +83,37 @@ impl From<ServerMessage> for TungsteniteMessage {
     fn from(msg: ServerMessage) -> Self {
         match msg {
             ServerMessage::Text(text) => TungsteniteMessage::Text(text),
-            ServerMessage::Binary(data) => TungsteniteMessage::Binary(data),
             ServerMessage::Ping(data) => TungsteniteMessage::Ping(data),
             ServerMessage::Pong(data) => TungsteniteMessage::Pong(data),
             ServerMessage::Close(frame) => TungsteniteMessage::Close(frame),
             ServerMessage::Frame(frame) => TungsteniteMessage::Frame(frame),
-            other => {
-                let json = serde_json::to_string(&other).unwrap_or_else(|_| "{}".into());
-                TungsteniteMessage::text(json)
+            ServerMessage::Binary(data) => {
+                let mut bin = vec![Tags::Binary as u8];
+                bin.extend_from_slice(&data);
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::RoomCreated(s) => {
+                let mut bin = vec![Tags::RoomCreated as u8];
+                bin.extend_from_slice(s.as_bytes());
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::JoinedSuccessfully => {
+                let bin = vec![Tags::JoinedSuccessfully as u8];
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::ClientJoined => {
+                let bin = vec![Tags::ClientJoined as u8];
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::ClientLeft => {
+                let bin = vec![Tags::ClientLeft as u8];
+
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::Error(s) => {
+                let mut bin = vec![Tags::Error as u8];
+                bin.extend_from_slice(s.as_bytes());
+                TungsteniteMessage::binary(bin)
             }
         }
     }
@@ -107,9 +156,9 @@ impl ServerMessage {
     pub fn len(&self) -> usize {
         match *self {
             ServerMessage::Text(ref string) => string.len(),
-            ServerMessage::Binary(ref data) | ServerMessage::Ping(ref data) | ServerMessage::Pong(ref data) => {
-                data.len()
-            }
+            ServerMessage::Binary(ref data)
+            | ServerMessage::Ping(ref data)
+            | ServerMessage::Pong(ref data) => data.len(),
             ServerMessage::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
             ServerMessage::Frame(ref frame) => frame.len(),
             _ => 0,
@@ -123,7 +172,9 @@ impl ServerMessage {
     pub fn into_data(self) -> Bytes {
         match self {
             ServerMessage::Text(utf8) => utf8.into(),
-            ServerMessage::Binary(data) | ServerMessage::Ping(data) | ServerMessage::Pong(data) => data,
+            ServerMessage::Binary(data) | ServerMessage::Ping(data) | ServerMessage::Pong(data) => {
+                data
+            }
             ServerMessage::Close(None) => <_>::default(),
             ServerMessage::Close(Some(frame)) => frame.reason.into(),
             ServerMessage::Frame(frame) => frame.into_payload(),
@@ -151,9 +202,9 @@ impl ServerMessage {
     pub fn to_text(&self) -> tokio_tungstenite::tungstenite::Result<&str> {
         match *self {
             ServerMessage::Text(ref string) => Ok(string.as_str()),
-            ServerMessage::Binary(ref data) | ServerMessage::Ping(ref data) | ServerMessage::Pong(ref data) => {
-                Ok(str::from_utf8(data)?)
-            }
+            ServerMessage::Binary(ref data)
+            | ServerMessage::Ping(ref data)
+            | ServerMessage::Pong(ref data) => Ok(str::from_utf8(data)?),
             ServerMessage::Close(None) => Ok("Close"),
             ServerMessage::Close(Some(ref frame)) => Ok(&frame.reason),
             ServerMessage::Frame(ref frame) => Ok(frame.to_text()?),
@@ -166,19 +217,60 @@ impl ServerMessage {
     }
 }
 
-#[test]
-fn test_text_encode_decode_roundtrip() {
-    let s = "Hello";
-    let msg = ServerMessage::Text(s.into());
-    let ws_msg: TungsteniteMessage = msg.clone().into();
-    let parsed = ServerMessage::from(ws_msg);
-    assert_eq!(parsed, msg);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_binary_encode_decode_roundtrip() {
-    let msg = ServerMessage::Binary(vec![1, 2, 3].into());
-    let ws: TungsteniteMessage = msg.clone().into();
-    let parsed: ServerMessage = ws.into();
-    assert_eq!(parsed, msg);
+    #[test]
+    fn test_text_encode_decode_roundtrip() {
+        let s = "Hello";
+        let msg = ServerMessage::Text(s.into());
+        let ws_msg: TungsteniteMessage = msg.clone().into();
+        let parsed = ServerMessage::from(ws_msg);
+        assert_eq!(parsed, msg);
+    }
+
+    #[test]
+    fn test_binary_encode_decode_roundtrip() {
+        let msg = ServerMessage::Binary(vec![1, 2, 3].into());
+        let ws: TungsteniteMessage = msg.clone().into();
+        let parsed: ServerMessage = ws.into();
+        assert_eq!(parsed, msg);
+    }
+
+    #[test]
+    fn test_client_joined_roundtrip() {
+        let msg = ServerMessage::ClientJoined;
+        let ws: TungsteniteMessage = msg.clone().into();
+        let parsed: ServerMessage = ws.into();
+        assert_eq!(parsed, msg);
+    }
+
+    #[test]
+    fn test_message_len() {
+        let msg = ServerMessage::Text("123".into());
+        assert_eq!(msg.len(), 3);
+
+        let msg = ServerMessage::Binary(vec![1, 2, 3].into());
+        assert_eq!(msg.len(), 3);
+
+        let msg = ServerMessage::ClientJoined;
+        assert_eq!(msg.len(), 0);
+    }
+
+    #[test]
+    fn test_joined_successfully_roundtrip() {
+        let msg = ServerMessage::JoinedSuccessfully;
+        let ws: TungsteniteMessage = msg.clone().into();
+        let parsed: ServerMessage = ws.into();
+        assert_eq!(parsed, msg);
+    }
+
+    #[test]
+    fn test_room_created_roundtrip() {
+        let msg = ServerMessage::RoomCreated("test_room".to_string());
+        let ws: TungsteniteMessage = msg.clone().into();
+        let parsed: ServerMessage = ws.into();
+        assert_eq!(parsed, msg);
+    }
 }

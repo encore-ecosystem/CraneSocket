@@ -59,24 +59,6 @@ impl WebSocketTransport {
             .await
         });
 
-        // Heartbeat
-        // tokio::spawn(async move {
-        //     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-        //     loop {
-        //         interval.tick().await;
-        //         if recv_tx_clone
-        //             .send(TransportMessage::Text(
-        //                 serde_json::to_string(&ServerMessage::Error("Heartbeat".into())).unwrap(),
-        //             ))
-        //             .await
-        //             .is_err()
-        //         {
-        //             error!("WebSocket heartbeat failed");
-        //             break;
-        //         }
-        //     }
-        // });
-
         Ok(WebSocketTransport {
             peer_id,
             send_tx,

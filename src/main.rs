@@ -10,7 +10,6 @@ use tokio_tungstenite::accept_async;
 use crate::socket::get_default_gateway;
 use crate::socket::upnp::TcpListener;
 
-pub mod config;
 pub mod server;
 pub mod socket;
 

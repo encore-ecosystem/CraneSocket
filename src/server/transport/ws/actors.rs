@@ -89,9 +89,10 @@ async fn socket2app_process_message(
 ) -> Result<(), ProxyServerError> {
     let message_len = message.len();
     if message_len > MAX_MESSAGE_SIZE {
-        let error_msg = serde_json::to_string(&ClientMessage::Error("Message too large".into()))
-            .unwrap_or_default();
-        if let Err(e) = recv_tx.send(ClientMessage::text(error_msg)).await {
+        if let Err(e) = recv_tx
+            .send(ClientMessage::Error("Message too large".into()))
+            .await
+        {
             error!(
                 "Failed to notify client about oversized message, peer_id={}. Error: {}",
                 peer_id, e

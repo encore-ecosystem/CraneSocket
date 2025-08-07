@@ -12,7 +12,7 @@ async fn main() {
     env_logger::init();
 
     let socket =
-        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "iSgE1Tod".into())
+        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "j6W5KhYF".into())
             .await
             .unwrap();
 

@@ -20,7 +20,6 @@ async fn main() {
     ws_stream.wait_for_client().await.unwrap();
 
     let msg = ws_stream.next().await.unwrap();
-    println!("msg: {}", msg.to_text().unwrap());
 
     let file_size = msg.to_string().parse::<u64>().unwrap();
     println!("File size: {} bytes", file_size);
