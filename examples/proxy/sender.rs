@@ -1,7 +1,10 @@
 use dotenv::dotenv;
 use log::{debug, error};
 use tokio::{fs::File, io::AsyncReadExt, sync::oneshot};
-use upnpsocket::socket::proxy::{Message, WebSocketConnection};
+use upnpsocket::{
+    server::message::{ClientMessage, ServerMessage},
+    socket::proxy::WebSocketConnection,
+};
 
 #[tokio::main]
 async fn main() {
@@ -9,7 +12,7 @@ async fn main() {
     env_logger::init();
 
     let socket =
-        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "0HeOFwjN".into())
+        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "iSgE1Tod".into())
             .await
             .unwrap();
 
@@ -21,7 +24,7 @@ async fn main() {
         tokio::select! {
             Ok(msg) = stream.next() => {
                 match msg {
-                    Message::PeerDisconnected | Message::Close(_) => {
+                    ServerMessage::ClientLeft | ServerMessage::Close(_) => {
                         debug!("Connection closed");
                         tx.send(123).unwrap();
                     }
@@ -36,7 +39,7 @@ async fn main() {
 
     let file_size = file.metadata().await.unwrap().len();
     println!("{:?}", file_size);
-    sink.send(Message::text(file_size.to_string()))
+    sink.send(ClientMessage::text(file_size.to_string()))
         .await
         .unwrap();
 
@@ -48,12 +51,12 @@ async fn main() {
             break;
         }
         if rx.try_recv().is_ok() {
-            sink.send(Message::Close(None)).await.unwrap();
+            sink.send(ClientMessage::Close(None)).await.unwrap();
             return;
         }
 
         match sink
-            .send(Message::binary(buffer[..bytes_read].to_vec()))
+            .send(ClientMessage::binary(buffer[..bytes_read].to_vec()))
             .await
         {
             Ok(_) => {}
@@ -65,10 +68,10 @@ async fn main() {
         total_sent += bytes_read as u64;
         debug!("total bytes sent: {}", total_sent);
     }
-    sink.send(Message::Close(None)).await.unwrap();
+    sink.send(ClientMessage::Close(None)).await.unwrap();
 
-    // println!(
-    //     "File {} has been successfully sent ({} bytes)",
-    //     file_path, total_sent
-    // );
+    println!(
+        "File {} has been successfully sent ({} bytes)",
+        file_path, total_sent
+    );
 }

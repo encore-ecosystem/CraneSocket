@@ -6,11 +6,14 @@
 Code examples provided in <code>examples/upnp</code>. 
 
 Usage:
+
 1. start server with <code>cargo run --bin upnp_server</code>
 2. start client with <code>cargo run --bin upnp_client</code>
 
 ### Proxy
 Code examples provided in <code>examples/proxy</code>. 
+
+Usage:
 
 0. Specify file path in <code>sender.rs</code>
 1. Start proxy server (<code>cargo run --bin proxy_server</code>)

@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use crate::socket::{ListenerError, proxy::WebSocketListener};
 
 pub enum Listener {
@@ -18,6 +20,13 @@ impl Listener {
         match self {
             Listener::WebSocketListener(listener) => listener.accept().await,
             Listener::UPnPWebSocketListener(listener) => listener.accept().await,
+        }
+    }
+
+    pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
+        match self {
+            Listener::WebSocketListener(listener) => listener.get_local_addr(),
+            Listener::UPnPWebSocketListener(listener) => listener.get_local_addr(),
         }
     }
 }

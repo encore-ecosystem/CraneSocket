@@ -5,7 +5,9 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 
 use crate::server::error::ProxyServerError;
-use crate::server::transport::{Transport, TransportMessage};
+use crate::server::message::ClientMessage;
+use crate::server::message::ServerMessage;
+use crate::server::transport::Transport;
 
 mod actors;
 mod utils;
@@ -14,8 +16,8 @@ use actors::*;
 
 pub struct WebSocketTransport {
     peer_id: String,
-    send_tx: mpsc::Sender<TransportMessage>,
-    recv_rx: mpsc::Receiver<TransportMessage>,
+    send_tx: mpsc::Sender<ServerMessage>,
+    recv_rx: mpsc::Receiver<ClientMessage>,
 }
 
 impl WebSocketTransport {
@@ -26,8 +28,8 @@ impl WebSocketTransport {
     ) -> Result<Self, ProxyServerError> {
         let (ws_sender, ws_receiver) = ws_stream.split();
 
-        let (send_tx, send_rx) = mpsc::channel::<TransportMessage>(100);
-        let (recv_tx, recv_rx) = mpsc::channel::<TransportMessage>(100);
+        let (send_tx, send_rx) = mpsc::channel::<ServerMessage>(100);
+        let (recv_tx, recv_rx) = mpsc::channel::<ClientMessage>(100);
 
         let peer_id_clone = peer_id.clone();
         let shutdown_tx_clone = shutdown_tx.clone();
@@ -85,7 +87,7 @@ impl WebSocketTransport {
 
 #[async_trait]
 impl Transport for WebSocketTransport {
-    async fn send(&self, message: TransportMessage) -> Result<(), ProxyServerError> {
+    async fn send(&self, message: ServerMessage) -> Result<(), ProxyServerError> {
         self.send_tx
             .send(message)
             .await
@@ -93,18 +95,18 @@ impl Transport for WebSocketTransport {
         Ok(())
     }
 
-    async fn recv(&mut self) -> Option<Result<TransportMessage, ProxyServerError>> {
+    async fn recv(&mut self) -> Option<Result<ClientMessage, ProxyServerError>> {
         self.recv_rx.recv().await.map(Ok)
     }
 
-    fn try_recv(&mut self) -> Result<TransportMessage, TryRecvError> {
+    fn try_recv(&mut self) -> Result<ClientMessage, TryRecvError> {
         self.recv_rx.try_recv()
     }
 
     fn peer_id(&self) -> &str {
         &self.peer_id
     }
-    fn sender(&self) -> mpsc::Sender<TransportMessage> {
+    fn sender(&self) -> mpsc::Sender<ServerMessage> {
         self.send_tx.clone()
     }
 }

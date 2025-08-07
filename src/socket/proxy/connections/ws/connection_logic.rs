@@ -6,24 +6,22 @@ use tokio::time::timeout;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message};
 
 use crate::server::constant::PEER_CONNECTION_WAIT_TIMEOUT_SEC;
-use crate::{
-    server::message::{ClientTextMessage, ServerTextMessage},
-    socket::ConnectionError,
-};
+use crate::server::message::{ClientMessage, ServerMessage};
+use crate::socket::ConnectionError;
 
 pub async fn join_room(
     server_conn: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
     room_id: String,
 ) -> Result<(), ConnectionError> {
-    let msg = ClientTextMessage::JoinRoom(room_id);
+    let msg = ClientMessage::JoinRoom(room_id);
     server_conn
         .send(Message::text(serde_json::to_string(&msg)?))
         .await?;
 
     let msg = server_conn.next().await.unwrap()?;
-    match serde_json::from_str::<ServerTextMessage>(&msg.into_text()?) {
+    match serde_json::from_str::<ServerMessage>(&msg.into_text()?) {
         Ok(msg) => match msg {
-            ServerTextMessage::JoinedSuccessfully => Ok(()),
+            ServerMessage::JoinedSuccessfully => Ok(()),
             e => {
                 error!("{:?}", e);
                 Err(ConnectionError::UnavailableRoom)
@@ -37,7 +35,7 @@ pub async fn join_room(
 pub async fn register(
     server_conn: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
 ) -> Result<String, ConnectionError> {
-    let msg = ClientTextMessage::CreateRoom;
+    let msg = ClientMessage::CreateRoom;
     server_conn
         .send(Message::text(serde_json::to_string(&msg)?))
         .await?;
@@ -45,9 +43,9 @@ pub async fn register(
 
     let msg = server_conn.next().await.unwrap()?;
     debug!("Received server message");
-    let room_id = match serde_json::from_str::<ServerTextMessage>(&msg.into_text()?) {
+    let room_id = match serde_json::from_str::<ServerMessage>(&msg.into_text()?) {
         Ok(msg) => match msg {
-            ServerTextMessage::RoomCreated { room_id } => room_id,
+            ServerMessage::RoomCreated(room_id) => room_id,
             e => {
                 return Err(ConnectionError::UnexpectedMessage(format!(
                     "Expected RoomCreated message. Got {:?} ",
@@ -74,9 +72,9 @@ pub async fn wait_for_another_peer(
         Err(_) => return Err(ConnectionError::Timeout),
     };
 
-    match serde_json::from_str::<ServerTextMessage>(&msg.into_text()?) {
+    match serde_json::from_str::<ServerMessage>(&msg.into_text()?) {
         Ok(msg) => match msg {
-            ServerTextMessage::ClientJoined => Ok(()),
+            ServerMessage::ClientJoined => Ok(()),
             e => Err(ConnectionError::UnexpectedMessage(format!(
                 "Expected PeerJoined message. Got {:?} ",
                 e

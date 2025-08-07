@@ -1,6 +1,6 @@
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
-use log::{debug, error, info};
+use log::{debug, error};
 use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -9,40 +9,31 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::server::constant::{MAX_ERRORS_ALLOWED, MAX_MESSAGE_SIZE};
 use crate::server::error::ProxyServerError;
-use crate::server::message::ServerTextMessage;
-use crate::server::transport::TransportMessage;
+use crate::server::message::ClientMessage;
+use crate::server::message::ServerMessage;
 use crate::server::transport::ws::utils::send_max_errors_reached_msg;
 
 async fn app2socket_process_message(
     peer_id: &str,
-    msg: TransportMessage,
+    msg: ServerMessage,
     ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
 ) -> Result<(), ProxyServerError> {
-    let result = match msg {
-        TransportMessage::Text(text) => {
-            debug!("Sending text message to peer_id={}: {}", peer_id, text);
-            ws_sender.send(Message::text(text)).await
+    match ws_sender.send(msg.into()).await {
+        Ok(()) => {
+            debug!("Seccessfully sent message to peer_id={}", peer_id,);
+            Ok(())
         }
-        TransportMessage::Binary(data) => {
-            debug!(
-                "Sending binary message to peer_id={}, size={}",
-                peer_id,
-                data.len()
-            );
-            ws_sender.send(Message::binary(data)).await
+        Err(_) => {
+            debug!("Failed to send message to peer_id={}", peer_id,);
+            Err(ProxyServerError::Send("Could not send message".into()))
         }
-    };
-
-    match result {
-        Ok(()) => Ok(()),
-        Err(_) => Err(ProxyServerError::Send("Could not send message".into())),
     }
 }
 
 pub async fn app2socket_actor(
     peer_id: String,
     mut ws_sender: SplitSink<WebSocketStream<TcpStream>, Message>,
-    mut send_rx: mpsc::Receiver<TransportMessage>,
+    mut send_rx: mpsc::Receiver<ServerMessage>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) {
@@ -94,14 +85,13 @@ pub async fn app2socket_actor(
 async fn socket2app_process_message(
     peer_id: &str,
     message: Message,
-    recv_tx: &mpsc::Sender<TransportMessage>,
+    recv_tx: &mpsc::Sender<ClientMessage>,
 ) -> Result<(), ProxyServerError> {
     let message_len = message.len();
     if message_len > MAX_MESSAGE_SIZE {
-        let error_msg =
-            serde_json::to_string(&ServerTextMessage::Error("Message too large".into()))
-                .unwrap_or_default();
-        if let Err(e) = recv_tx.send(TransportMessage::Text(error_msg)).await {
+        let error_msg = serde_json::to_string(&ClientMessage::Error("Message too large".into()))
+            .unwrap_or_default();
+        if let Err(e) = recv_tx.send(ClientMessage::text(error_msg)).await {
             error!(
                 "Failed to notify client about oversized message, peer_id={}. Error: {}",
                 peer_id, e
@@ -110,41 +100,8 @@ async fn socket2app_process_message(
         return Ok(());
     }
 
-    let result = match message {
-        Message::Text(text) => {
-            debug!("Received text message from peer_id={}: {}", peer_id, text);
-            recv_tx.send(TransportMessage::Text(text.to_string())).await
-        }
-        Message::Binary(data) => {
-            debug!(
-                "Received binary message from peer_id={}, size={}",
-                peer_id,
-                data.len()
-            );
-            recv_tx.send(TransportMessage::Binary(data.to_vec())).await
-        }
-        Message::Close(frame) => {
-            info!(
-                "Received close message from peer_id={}: {:?}",
-                peer_id, frame
-            );
-            let msg = serde_json::to_string(&ServerTextMessage::ClientLeft).unwrap_or_default();
-            recv_tx.send(TransportMessage::Text(msg)).await
-        }
-        Message::Ping(_) | Message::Pong(_) => {
-            debug!(
-                "Received control message from peer_id={}: {:?}",
-                peer_id, message
-            );
-            Ok(())
-        }
-        _ => {
-            error!("Unsupported message type from peer_id={}", peer_id,);
-            Err(ProxyServerError::InvalidData(
-                "Unsupported message type".into(),
-            ))?
-        }
-    };
+    debug!("Received message from peer_id={}", peer_id);
+    let result = recv_tx.send(message.into()).await;
 
     result.map_err(|_| ProxyServerError::Send("Could not send message to app".into()))
 }
@@ -152,7 +109,7 @@ async fn socket2app_process_message(
 pub async fn socket2app_actor(
     peer_id: String,
     mut ws_receiver: SplitStream<WebSocketStream<TcpStream>>,
-    recv_tx: mpsc::Sender<TransportMessage>,
+    recv_tx: mpsc::Sender<ClientMessage>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) {
@@ -173,9 +130,7 @@ pub async fn socket2app_actor(
                                 );
 
                                 if error_counter >= MAX_ERRORS_ALLOWED {
-                                    let msg = serde_json::to_string(&ServerTextMessage::ClientLeft)
-                                        .unwrap_or_default();
-                                    let _ = recv_tx.send(TransportMessage::Text(msg)).await;
+                                    let _ = recv_tx.send(ClientMessage::LeaveRoom).await;
                                     send_max_errors_reached_msg(&peer_id, &shutdown_tx);
                                     break;
                                 }
@@ -190,9 +145,7 @@ pub async fn socket2app_actor(
                         );
 
                         if error_counter >= MAX_ERRORS_ALLOWED {
-                            let msg = serde_json::to_string(&ServerTextMessage::ClientLeft)
-                                .unwrap_or_default();
-                            let _ = recv_tx.send(TransportMessage::Text(msg)).await;
+                            let _ = recv_tx.send(ClientMessage::LeaveRoom).await;
                             send_max_errors_reached_msg(&peer_id, &shutdown_tx);
                             break;
                         }

@@ -1,8 +1,8 @@
 use dotenv::dotenv;
 use log::debug;
 use tokio::{fs::File, io::AsyncWriteExt};
-use upnpsocket::socket::proxy::Message;
-use upnpsocket::socket::proxy::WebSocketConnection;
+
+use upnpsocket::{server::message::ServerMessage, socket::proxy::WebSocketConnection};
 
 #[tokio::main]
 async fn main() {
@@ -32,7 +32,7 @@ async fn main() {
     while total_received < file_size {
         let msg = ws_stream.next().await;
         match msg {
-            Ok(Message::Binary(data)) => {
+            Ok(ServerMessage::Binary(data)) => {
                 file.write_all(&data).await.unwrap();
                 total_received += data.len() as u64;
                 debug!(
@@ -41,7 +41,7 @@ async fn main() {
                     total_received
                 );
             }
-            Ok(Message::Close(_) | Message::PeerDisconnected) => {
+            Ok(ServerMessage::Close(_) | ServerMessage::ClientLeft) => {
                 println!("Connection closed");
                 ws_stream.close(None).await.unwrap();
                 file.flush().await.unwrap();

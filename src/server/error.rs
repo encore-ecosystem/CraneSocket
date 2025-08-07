@@ -29,4 +29,6 @@ pub enum ProxyServerError {
     InvalidData(String),
     #[error("Transport error: {0}")]
     Transport(String),
+    #[error("Not Found error: {0}")]
+    NotFound(String),
 }

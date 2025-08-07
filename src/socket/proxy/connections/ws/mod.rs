@@ -1,6 +1,11 @@
-use crate::socket::ConnectionError;
-use crate::socket::proxy::Message;
-use futures::stream::{SplitSink, SplitStream};
+use crate::{
+    server::message::{ClientMessage, ServerMessage},
+    socket::ConnectionError,
+};
+use futures::{
+    SinkExt,
+    stream::{SplitSink, SplitStream},
+};
 use futures_util::StreamExt;
 use log::debug;
 use std::net::SocketAddr;
@@ -11,10 +16,10 @@ use tokio_tungstenite::{
 };
 
 mod connection_logic;
-mod ws_logic;
 
 use connection_logic::*;
 
+#[derive(Debug)]
 pub struct WebSocketConnection {
     stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
@@ -51,13 +56,15 @@ impl WebSocketConnection {
         Ok(conn)
     }
 
-    pub async fn send(&mut self, msg: Message) -> Result<(), ConnectionError> {
-        ws_logic::send(&mut self.stream, msg).await?;
-        Ok(())
+    pub async fn send(&mut self, msg: ClientMessage) -> Result<(), ConnectionError> {
+        Ok(self.stream.send(msg.into()).await?)
     }
 
-    pub async fn next(&mut self) -> Result<Message, ConnectionError> {
-        ws_logic::next(&mut self.stream).await
+    pub async fn next(&mut self) -> Result<ServerMessage, ConnectionError> {
+        match self.stream.next().await.unwrap() {
+            Ok(msg) => Ok(msg.into()),
+            Err(e) => Err(ConnectionError::WebSocket(e)),
+        }
     }
 
     pub async fn close(&mut self, frame: Option<CloseFrame>) -> Result<(), ConnectionError> {
@@ -104,9 +111,8 @@ pub struct WebSocketSender {
 }
 
 impl WebSocketSender {
-    pub async fn send(&mut self, msg: Message) -> Result<(), ConnectionError> {
-        ws_logic::send(&mut self.sink, msg).await?;
-        Ok(())
+    pub async fn send(&mut self, msg: ClientMessage) -> Result<(), ConnectionError> {
+        Ok(self.sink.send(msg.into()).await?)
     }
 }
 
@@ -115,7 +121,10 @@ pub struct WebSocketReceiver {
 }
 
 impl WebSocketReceiver {
-    pub async fn next(&mut self) -> Result<Message, ConnectionError> {
-        ws_logic::next(&mut self.stream).await
+    pub async fn next(&mut self) -> Result<ServerMessage, ConnectionError> {
+        match self.stream.next().await.unwrap() {
+            Ok(msg) => Ok(msg.into()),
+            Err(e) => Err(ConnectionError::WebSocket(e)),
+        }
     }
 }

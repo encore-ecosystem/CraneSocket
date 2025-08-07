@@ -7,8 +7,9 @@ use tokio::sync::{RwLock, broadcast};
 
 use crate::server::common::Listener;
 use crate::server::error::ProxyServerError;
+use crate::server::message::ServerMessage;
 use crate::server::message_handler::handle_message;
-use crate::server::transport::{TransportMessage, WebSocketTransport};
+use crate::server::transport::WebSocketTransport;
 use crate::socket::proxy::WebSocketListener;
 use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
 
@@ -20,46 +21,42 @@ mod message_handler;
 mod transport;
 mod utils;
 
-pub type Sender = tokio::sync::mpsc::Sender<TransportMessage>;
+pub type Sender = tokio::sync::mpsc::Sender<ServerMessage>;
 pub type Room = HashMap<String, Sender>;
 pub type Rooms = Arc<RwLock<HashMap<String, Room>>>;
 pub type Peer2Room = Arc<RwLock<HashMap<String, String>>>;
 
 pub struct ProxyServer {
+    listener: Listener,
     rooms: Rooms,
     peer2room: Peer2Room,
 }
 
-impl Default for ProxyServer {
-    fn default() -> Self {
-        ProxyServer::new()
-    }
-}
-
 impl ProxyServer {
-    pub fn new() -> Self {
+    pub async fn bind(addr: &SocketAddr, use_upnp: bool) -> Result<Self, ProxyServerError> {
         let rooms: Rooms = Arc::new(RwLock::new(HashMap::new()));
         let peer2room: Peer2Room = Arc::new(RwLock::new(HashMap::new()));
-        ProxyServer { rooms, peer2room }
-    }
-
-    pub async fn serve(
-        self,
-        addr: &SocketAddr,
-        use_upnp: bool,
-        mut shutdown_rx: Receiver<()>,
-    ) -> Result<(), ProxyServerError> {
         let listener = match use_upnp {
             true => Listener::UPnPWebSocketListener(UPnPWebSocketListener::listen(addr).await?),
             false => Listener::WebSocketListener(WebSocketListener::listen(addr).await?),
         };
-        info!("Proxy server started listening on {}", addr);
+        Ok(ProxyServer {
+            listener,
+            rooms,
+            peer2room,
+        })
+    }
 
+    pub async fn serve(&self, mut shutdown_rx: Receiver<()>) -> Result<(), ProxyServerError> {
+        info!(
+            "Proxy server started serving on {}",
+            self.listener.get_local_addr()?
+        );
         loop {
             tokio::select! {
                 _ = async {
                     loop {
-                        let (stream, addr) = listener.accept().await.unwrap();
+                        let (stream, addr) = self.listener.accept().await.unwrap();
                         info!("New WebSocket connection: {}", addr);
                         let rooms = self.rooms.clone();
                         let peer2room = self.peer2room.clone();
@@ -82,5 +79,19 @@ impl ProxyServer {
         }
 
         Ok(())
+    }
+
+    pub fn get_local_addr(&self) -> Result<SocketAddr, ProxyServerError> {
+        self.listener
+            .get_local_addr()
+            .map_err(ProxyServerError::Listener)
+    }
+
+    pub fn get_rooms(&self) -> Rooms {
+        self.rooms.clone()
+    }
+
+    pub fn get_peer2room(&self) -> Peer2Room {
+        self.peer2room.clone()
     }
 }
