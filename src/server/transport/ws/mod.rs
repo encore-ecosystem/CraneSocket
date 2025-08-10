@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures_util::StreamExt;
+use log::debug;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -10,7 +11,6 @@ use crate::server::message::ServerMessage;
 use crate::server::transport::Transport;
 
 mod actors;
-mod utils;
 
 use actors::*;
 
@@ -44,6 +44,7 @@ impl WebSocketTransport {
             )
             .await
         });
+        debug!("app2socket actor started");
 
         let peer_id_clone = peer_id.clone();
         let shutdown_tx_clone = shutdown_tx.clone();
@@ -58,6 +59,7 @@ impl WebSocketTransport {
             )
             .await
         });
+        debug!("socket2app actor started");
 
         Ok(WebSocketTransport {
             peer_id,

@@ -1,13 +1,12 @@
 use log::{debug, error};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message;
 
 use crate::server::constant::{MAX_ERRORS_ALLOWED, MAX_MESSAGE_SIZE};
 use crate::server::error::ProxyServerError;
 use crate::server::message::ClientMessage;
 use crate::server::message::ServerMessage;
-use crate::server::transport::tcp::utils::send_max_errors_reached_msg;
+use crate::server::transport::common::send_max_errors_reached_msg;
 use crate::socket::proxy::ReadHalf;
 use crate::socket::proxy::WriteHalf;
 

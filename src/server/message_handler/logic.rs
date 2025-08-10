@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::server::Room;
+use crate::server::constant::MAX_NUM_CLIENTS_IN_ROOM;
+use crate::server::constant::MAX_NUM_ROOMS;
 use crate::server::error::ProxyServerError;
 use crate::server::message::ServerMessage;
 
@@ -16,6 +18,11 @@ pub async fn handle_create_room(
     rooms: &mut HashMap<String, Room>,
     peer2room: &mut HashMap<String, String>,
 ) -> Result<(), ProxyServerError> {
+    if rooms.len() > MAX_NUM_ROOMS {
+        send_error(&tx, "No available rooms left").await?;
+        return Ok(());
+    };
+
     if let Some(room_id) = peer2room.get(peer_id) {
         send_error(&tx, format!("Peer is already in a room {}", room_id)).await?;
         return Ok(());
@@ -59,6 +66,11 @@ pub async fn handle_join_room(
             send_error(tx, format!("No room with room_id={} exists", room_id)).await?;
             return Ok(());
         }
+    };
+
+    if room.len() > MAX_NUM_CLIENTS_IN_ROOM {
+        send_error(tx, "The room is full").await?;
+        return Ok(());
     };
 
     room.insert(peer_id.to_string(), tx.clone());

@@ -13,7 +13,6 @@ use crate::socket::proxy::ReadHalf;
 use crate::socket::proxy::WriteHalf;
 
 mod actors;
-mod utils;
 
 use actors::*;
 
@@ -64,7 +63,7 @@ impl TcpTransport {
             )
             .await
         });
-        debug!("app2socket actor started");
+        debug!("socket2app actor started");
 
         Ok(TcpTransport {
             peer_id,

@@ -1,5 +1,4 @@
 use log::{debug, error};
-use std::net::Shutdown;
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

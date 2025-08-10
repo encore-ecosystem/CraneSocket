@@ -10,7 +10,7 @@ use crate::server::constant::{MAX_ERRORS_ALLOWED, MAX_MESSAGE_SIZE};
 use crate::server::error::ProxyServerError;
 use crate::server::message::ClientMessage;
 use crate::server::message::ServerMessage;
-use crate::server::transport::ws::utils::send_max_errors_reached_msg;
+use crate::server::transport::common::send_max_errors_reached_msg;
 
 async fn app2socket_process_message<S>(
     peer_id: &str,

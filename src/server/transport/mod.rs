@@ -6,6 +6,7 @@ use crate::server::{
     message::{ClientMessage, ServerMessage},
 };
 
+mod common;
 mod tcp;
 mod udp;
 mod ws;
