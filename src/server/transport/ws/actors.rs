@@ -1,7 +1,6 @@
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error};
-use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio_tungstenite::WebSocketStream;
@@ -13,11 +12,14 @@ use crate::server::message::ClientMessage;
 use crate::server::message::ServerMessage;
 use crate::server::transport::ws::utils::send_max_errors_reached_msg;
 
-async fn app2socket_process_message(
+async fn app2socket_process_message<S>(
     peer_id: &str,
     msg: ServerMessage,
-    ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
-) -> Result<(), ProxyServerError> {
+    ws_sender: &mut SplitSink<WebSocketStream<S>, Message>,
+) -> Result<(), ProxyServerError>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     match ws_sender.send(msg.into()).await {
         Ok(()) => {
             debug!("Seccessfully sent message to peer_id={}", peer_id,);
@@ -30,13 +32,15 @@ async fn app2socket_process_message(
     }
 }
 
-pub async fn app2socket_actor(
+pub async fn app2socket_actor<S>(
     peer_id: String,
-    mut ws_sender: SplitSink<WebSocketStream<TcpStream>, Message>,
+    mut ws_sender: SplitSink<WebSocketStream<S>, Message>,
     mut send_rx: mpsc::Receiver<ServerMessage>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
-) {
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let mut error_counter: usize = 0;
     loop {
         tokio::select! {
@@ -107,13 +111,15 @@ async fn socket2app_process_message(
     result.map_err(|_| ProxyServerError::Send("Could not send message to app".into()))
 }
 
-pub async fn socket2app_actor(
+pub async fn socket2app_actor<S>(
     peer_id: String,
-    mut ws_receiver: SplitStream<WebSocketStream<TcpStream>>,
+    mut ws_receiver: SplitStream<WebSocketStream<S>>,
     recv_tx: mpsc::Sender<ClientMessage>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
-) {
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let mut error_counter: usize = 0;
     loop {
         tokio::select! {

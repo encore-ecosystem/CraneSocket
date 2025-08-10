@@ -1,2 +1,0 @@
-pub const TEST_SLEEP_TIME_MS: u64 = 100;
-pub const TEST_TIMEOUT_TIME_MS: u64 = 1000;

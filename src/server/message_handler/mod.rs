@@ -78,13 +78,13 @@ async fn process_message(
             drop((rooms_lock, peer2room_lock));
             let rooms = rooms.read().await;
             let peer2room = peer2room.read().await;
-            handle_text_data(peer_id, data.to_string(), &rooms, &peer2room).await?
+            handle_text_data(peer_id, &tx, data.to_string(), &rooms, &peer2room).await?
         }
         ClientMessage::Binary(data) => {
             drop((rooms_lock, peer2room_lock));
             let rooms = rooms.read().await;
             let peer2room = peer2room.read().await;
-            handle_binary_data(peer_id, data.to_vec(), &rooms, &peer2room).await?;
+            handle_binary_data(peer_id, &tx, data.to_vec(), &rooms, &peer2room).await?;
         }
         ClientMessage::CreateRoom => {
             handle_create_room(peer_id, tx.clone(), &mut rooms_lock, &mut peer2room_lock).await?

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, broadcast};
 
-use crate::server::common::Listener;
+use crate::server::common::WebSocketListener;
 use crate::server::error::ProxyServerError;
 use crate::server::message::ServerMessage;
 use crate::server::message_handler::handle_message;
 use crate::server::transport::WebSocketTransport;
-use crate::socket::proxy::WebSocketListener;
+use crate::socket::proxy::WebSocketListener as ProxyWebSocketListener;
 use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
 
 pub mod common;
@@ -27,7 +27,7 @@ pub type Rooms = Arc<RwLock<HashMap<String, Room>>>;
 pub type Peer2Room = Arc<RwLock<HashMap<String, String>>>;
 
 pub struct ProxyServer {
-    listener: Listener,
+    listener: WebSocketListener,
     rooms: Rooms,
     peer2room: Peer2Room,
 }
@@ -37,8 +37,12 @@ impl ProxyServer {
         let rooms: Rooms = Arc::new(RwLock::new(HashMap::new()));
         let peer2room: Peer2Room = Arc::new(RwLock::new(HashMap::new()));
         let listener = match use_upnp {
-            true => Listener::UPnPWebSocketListener(UPnPWebSocketListener::listen(addr).await?),
-            false => Listener::WebSocketListener(WebSocketListener::listen(addr).await?),
+            true => {
+                WebSocketListener::UPnPWebSocketListener(UPnPWebSocketListener::listen(addr).await?)
+            }
+            false => WebSocketListener::ProxyWebSocketListener(
+                ProxyWebSocketListener::listen(addr).await?,
+            ),
         };
         Ok(ProxyServer {
             listener,

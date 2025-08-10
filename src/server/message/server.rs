@@ -61,7 +61,7 @@ impl From<TungsteniteMessage> for ServerMessage {
                     x if x == Tags::JoinedSuccessfully as u8 => ServerMessage::JoinedSuccessfully,
                     x if x == Tags::ClientJoined as u8 => ServerMessage::ClientJoined,
                     x if x == Tags::ClientLeft as u8 => ServerMessage::ClientLeft,
-                    x if x == Tags::Error as u8 => {
+                    x if x == Tags::ServerError as u8 => {
                         let s =
                             String::from_utf8(payload.to_vec()).unwrap_or_else(|_| String::new());
 
@@ -111,7 +111,7 @@ impl From<ServerMessage> for TungsteniteMessage {
                 TungsteniteMessage::binary(bin)
             }
             ServerMessage::Error(s) => {
-                let mut bin = vec![Tags::Error as u8];
+                let mut bin = vec![Tags::ServerError as u8];
                 bin.extend_from_slice(s.as_bytes());
                 TungsteniteMessage::binary(bin)
             }
@@ -231,14 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_encode_decode_roundtrip() {
-        let msg = ServerMessage::Binary(vec![1, 2, 3].into());
-        let ws: TungsteniteMessage = msg.clone().into();
-        let parsed: ServerMessage = ws.into();
-        assert_eq!(parsed, msg);
-    }
-
-    #[test]
     fn test_client_joined_roundtrip() {
         let msg = ServerMessage::ClientJoined;
         let ws: TungsteniteMessage = msg.clone().into();
@@ -259,18 +251,52 @@ mod tests {
     }
 
     #[test]
-    fn test_joined_successfully_roundtrip() {
-        let msg = ServerMessage::JoinedSuccessfully;
+    fn test_server_binary_encode_decode_regular() {
+        let msg = ServerMessage::Binary(vec![1, 2, 3].into());
+        // let bytes: Vec<u8> = msg.clone().into();
+        // let parsed = ServerMessage::try_from(bytes.as_slice()).unwrap();
+        // assert_eq!(parsed, msg);
+
         let ws: TungsteniteMessage = msg.clone().into();
         let parsed: ServerMessage = ws.into();
         assert_eq!(parsed, msg);
     }
 
     #[test]
-    fn test_room_created_roundtrip() {
-        let msg = ServerMessage::RoomCreated("test_room".to_string());
+    fn test_server_joined_successfully_roundtrip() {
+        let msg = ServerMessage::JoinedSuccessfully;
+        // let bytes: Vec<u8> = msg.clone().into();
+        // let parsed = ServerMessage::try_from(bytes.as_slice()).unwrap();
+        // assert_eq!(parsed, msg);
+
         let ws: TungsteniteMessage = msg.clone().into();
         let parsed: ServerMessage = ws.into();
         assert_eq!(parsed, msg);
     }
+
+    #[test]
+    fn test_server_room_created_roundtrip() {
+        let msg = ServerMessage::RoomCreated("test_room".to_string());
+        // let bytes: Vec<u8> = msg.clone().into();
+        // let parsed = ServerMessage::try_from(bytes.as_slice()).unwrap();
+        // assert_eq!(parsed, msg);
+
+        let ws: TungsteniteMessage = msg.clone().into();
+        let parsed: ServerMessage = ws.into();
+        assert_eq!(parsed, msg);
+    }
+
+    // #[test]
+    // fn test_server_invalid_tag() {
+    //     let bytes = vec![0xFF, 1, 2, 3]; // Unknown tag
+    //     let result = ServerMessage::try_from(bytes.as_slice());
+    //     assert_eq!(result, Err(MessageError::InvalidTag(0xFF)));
+    // }
+
+    // #[test]
+    // fn test_server_invalid_utf8() {
+    //     let bytes = vec![Tags::RoomCreated as u8, 0xFF, 0xFF, 0xFF]; // Invalid UTF-8
+    //     let result = ServerMessage::try_from(bytes.as_slice());
+    //     assert_eq!(result, Err(MessageError::InvalidUtf8));
+    // }
 }
