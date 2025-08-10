@@ -14,7 +14,7 @@ pub struct TcpListener {
 }
 
 impl TcpListener {
-    pub async fn bind(local_addr: &SocketAddr) -> Result<Self, ListenerError> {
+    pub async fn listen(local_addr: &SocketAddr) -> Result<Self, ListenerError> {
         let listener = tokio::net::TcpListener::bind(&local_addr).await?;
         let upnp_manager =
             init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Tcp).await?;

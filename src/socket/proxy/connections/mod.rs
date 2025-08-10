@@ -3,4 +3,5 @@ mod tcp;
 mod udp;
 mod ws;
 
-pub use {tcp::TcpConnection, udp::UdpConnection, ws::WebSocketConnection};
+pub use {tcp::ReadHalf, tcp::TcpConnection, tcp::WriteHalf};
+pub use {udp::UdpConnection, ws::WebSocketConnection};

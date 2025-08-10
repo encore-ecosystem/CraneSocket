@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::Bytes;
 use upnpsocket::{
     server::{
-        ProxyServer,
+        WebSocketProxyServer,
         message::{ClientMessage, ServerMessage},
     },
     socket::proxy::WebSocketConnection,
@@ -17,7 +17,7 @@ use crate::{TEST_SLEEP_TIME_MS, timed};
 async fn test_text_data_transfer_success() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(ProxyServer::bind(&bind_addr, false)).await.unwrap();
+    let server = timed(WebSocketProxyServer::bind(&bind_addr, false)).await.unwrap();
     let server_addr = server.get_local_addr().unwrap();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -80,7 +80,7 @@ async fn test_text_data_transfer_success() {
 async fn test_text_data_transfer_alone_in_room() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(ProxyServer::bind(&bind_addr, false)).await.unwrap();
+    let server = timed(WebSocketProxyServer::bind(&bind_addr, false)).await.unwrap();
     let server_addr = server.get_local_addr().unwrap();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -105,7 +105,7 @@ async fn test_text_data_transfer_alone_in_room() {
 async fn test_binary_data_transfer_success() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(ProxyServer::bind(&bind_addr, false)).await.unwrap();
+    let server = timed(WebSocketProxyServer::bind(&bind_addr, false)).await.unwrap();
     let server_addr = server.get_local_addr().unwrap();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();

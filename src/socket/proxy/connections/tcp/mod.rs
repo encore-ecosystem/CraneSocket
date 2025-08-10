@@ -1,13 +1,18 @@
 use log::{debug, error};
+use std::net::Shutdown;
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+    net::{
+        TcpStream,
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+    },
 };
 
-use crate::socket::ConnectionError;
+use crate::{server::message::Tags, socket::ConnectionError};
 
-pub mod utils;
+mod connection_logic;
+use connection_logic::*;
 
 pub struct TcpConnection {
     stream: TcpStream,
@@ -18,40 +23,35 @@ impl TcpConnection {
         Self { stream }
     }
 
-    pub async fn connect(addr: &SocketAddr) -> Result<Self, ConnectionError> {
-        // match TcpStream::connect(addr).await {
-        //     Ok(stream) => {
-        //         debug!("Successfully connected to {}", addr);
-        //         Ok(TcpConnection { stream })
-        //     }
-        //     Err(e) => {
-        //         error!("Failed to connected to {}: {}", addr, e);
-        //         Err(ConnectionError::Socket(e))
-        //     }
-        // }
+    pub async fn create_room(addr: &SocketAddr) -> Result<(Self, String), ConnectionError> {
+        let mut server_conn = TcpStream::connect(addr).await?;
+        debug!("Connected to the proxy server");
 
-        unimplemented!()
+        let room_id = register(&mut server_conn).await?;
+        debug!("Created a room on the proxy server. id = {}", room_id);
+
+        Ok((Self::new(server_conn), room_id))
     }
 
-    pub async fn send(&mut self, buf: &[u8]) -> Result<usize, ConnectionError> {
-        let peer_addr = self.stream.peer_addr().map_or_else(
-            |e| {
-                log::error!("Failed to get peer address: {}", e);
-                "unknown".to_string()
-            },
-            |addr| addr.to_string(),
-        );
+    pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
+        let mut server_conn = TcpStream::connect(addr).await?;
+        debug!("Connected to the proxy server");
 
-        match self.stream.write(buf).await {
-            Ok(bytes_sent) => {
-                debug!("Sent {} bytes to peer {}", bytes_sent, peer_addr);
-                Ok(bytes_sent)
-            }
-            Err(e) => {
-                error!("Failed to send to peer {}: {}", peer_addr, e);
-                Err(ConnectionError::Io)
-            }
-        }
+        join_room(&mut server_conn, room_id).await?;
+        debug!("Joined the room on the proxy server");
+
+        let conn = Self::new(server_conn);
+        Ok(conn)
+    }
+
+    pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
+        wait_for_another_peer(&mut self.stream).await?;
+        debug!("Another peer successfully connected to proxy server");
+        Ok(())
+    }
+
+    pub async fn send(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
+        Ok(self.stream.write_all(buf).await?)
     }
 
     pub async fn recv(&mut self, buf: &mut [u8]) -> Result<usize, ConnectionError> {
@@ -72,5 +72,162 @@ impl TcpConnection {
                 Err(ConnectionError::Io)
             }
         }
+    }
+
+    pub async fn next(&mut self) -> Result<Vec<u8>, ConnectionError> {
+        let mut tag = [0u8; 1];
+        self.stream.read_exact(&mut tag).await?;
+
+        if matches!(
+            tag[0],
+            x if x == Tags::CreateRoom as u8
+                || x == Tags::LeaveRoom as u8
+                || x == Tags::JoinedSuccessfully as u8
+                || x == Tags::ClientJoined as u8
+                || x == Tags::ClientLeft as u8
+                || x == Tags::Close as u8
+                || x == Tags::Frame as u8
+        ) {
+            return Ok(tag.into());
+        }
+
+        if !matches!(
+            tag[0],
+            x if x == Tags::Text as u8
+                || x == Tags::Binary as u8
+                || x == Tags::Ping as u8
+                || x == Tags::Pong as u8
+                || x == Tags::RoomCreated as u8
+                || x == Tags::JoinRoom as u8
+                || x == Tags::Error as u8
+        ) {
+            return Err(ConnectionError::UnexpectedMessage(
+                "Received a message with an unexpected tag".into(),
+            ));
+        }
+
+        let mut len_buf = [0u8; 8];
+        self.stream.read_exact(&mut len_buf).await?;
+        let len = u64::from_be_bytes(len_buf) as usize;
+
+        let mut payload = vec![0u8; len];
+        self.stream.read_exact(&mut payload).await?;
+
+        let mut data = vec![tag[0]];
+        data.extend_from_slice(&len_buf);
+        data.extend_from_slice(&payload);
+
+        Ok(data)
+    }
+
+    pub fn into_split(self) -> (ReadHalf, WriteHalf) {
+        let (receiver, sender) = self.stream.into_split();
+        (ReadHalf::new(receiver), WriteHalf::new(sender))
+    }
+
+    pub async fn close(&mut self) -> std::io::Result<()> {
+        self.stream.shutdown().await
+    }
+}
+
+pub struct ReadHalf {
+    stream: OwnedReadHalf,
+}
+
+impl ReadHalf {
+    pub fn new(stream: OwnedReadHalf) -> Self {
+        Self { stream }
+    }
+
+    pub async fn recv(&mut self, buf: &mut [u8]) -> Result<usize, ConnectionError> {
+        let peer_addr = self.stream.peer_addr().map_or_else(
+            |e| {
+                log::error!("Failed to get peer address: {}", e);
+                "unknown".to_string()
+            },
+            |addr| addr.to_string(),
+        );
+        match self.stream.read(buf).await {
+            Ok(bytes_read) => {
+                debug!("Read {} bytes from peer {}", bytes_read, peer_addr);
+                Ok(bytes_read)
+            }
+            Err(e) => {
+                error!("Failed to read from peer {}: {}", peer_addr, e);
+                Err(ConnectionError::Io)
+            }
+        }
+    }
+
+    pub async fn next(&mut self) -> Result<Vec<u8>, ConnectionError> {
+        let mut tag = [0u8; 1];
+        self.stream.read_exact(&mut tag).await?;
+
+        debug!("1");
+
+        if matches!(
+            tag[0],
+            x if x == Tags::CreateRoom as u8
+                || x == Tags::LeaveRoom as u8
+                || x == Tags::JoinedSuccessfully as u8
+                || x == Tags::ClientJoined as u8
+                || x == Tags::ClientLeft as u8
+                || x == Tags::Close as u8
+                || x == Tags::Frame as u8
+        ) {
+            return Ok(tag.into());
+        }
+
+        debug!("2");
+
+        if !matches!(
+            tag[0],
+            x if x == Tags::Text as u8
+                || x == Tags::Binary as u8
+                || x == Tags::Ping as u8
+                || x == Tags::Pong as u8
+                || x == Tags::RoomCreated as u8
+                || x == Tags::JoinRoom as u8
+                || x == Tags::Error as u8
+        ) {
+            return Err(ConnectionError::UnexpectedMessage(
+                "Received a message with an unexpected tag".into(),
+            ));
+        }
+
+        debug!("3");
+
+        let mut len_buf = [0u8; 8];
+        self.stream.read_exact(&mut len_buf).await?;
+        let len = u64::from_be_bytes(len_buf) as usize;
+
+        debug!("4");
+
+        let mut payload = vec![0u8; len];
+        self.stream.read_exact(&mut payload).await?;
+
+        debug!("5");
+
+        let mut data = vec![tag[0]];
+        data.extend_from_slice(&len_buf);
+        data.extend_from_slice(&payload);
+
+        debug!("6");
+
+        Ok(data)
+    }
+}
+
+pub struct WriteHalf {
+    stream: OwnedWriteHalf,
+}
+
+impl WriteHalf {
+    pub fn new(stream: OwnedWriteHalf) -> Self {
+        Self { stream }
+    }
+
+    pub async fn send(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
+        Ok(self.stream.write_all(buf).await?)
     }
 }

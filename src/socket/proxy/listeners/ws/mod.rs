@@ -4,7 +4,6 @@ use tokio_tungstenite::{WebSocketStream, accept_async};
 
 use crate::socket::ListenerError;
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct WebSocketListener {
     listener: tokio::net::TcpListener,
@@ -16,10 +15,7 @@ impl WebSocketListener {
         Ok(Self { listener })
     }
 
-    pub async fn accept(
-        &self,
-    ) -> Result<(WebSocketStream<TcpStream>, SocketAddr), ListenerError>
-    {
+    pub async fn accept(&self) -> Result<(WebSocketStream<TcpStream>, SocketAddr), ListenerError> {
         let (stream, addr) = self.listener.accept().await?;
         let stream = accept_async(stream).await?;
         Ok((stream, addr))

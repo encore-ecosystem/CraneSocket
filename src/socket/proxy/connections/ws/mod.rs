@@ -16,7 +16,6 @@ use tokio_tungstenite::{
 };
 
 mod connection_logic;
-
 use connection_logic::*;
 
 #[derive(Debug)]
@@ -33,27 +32,29 @@ impl WebSocketConnection {
         server_addr: &SocketAddr,
     ) -> Result<(WebSocketConnection, String), ConnectionError> {
         let (mut server_conn, _response) = connect_async(format!("ws://{}", server_addr)).await?;
-        debug!("Connected to proxy server");
+        debug!("Connected to the proxy server");
 
         let room_id = register(&mut server_conn).await?;
-        debug!("Created a room on proxy server");
+        debug!("Created a room on the proxy server. id = {}", room_id);
 
         Ok((WebSocketConnection::new(server_conn), room_id))
+    }
+
+    pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
+        let (mut server_conn, _response) = connect_async(format!("ws://{}", addr)).await?;
+        debug!("Connected to the proxy server");
+
+        join_room(&mut server_conn, room_id).await?;
+        debug!("Joined the room on the proxy server");
+
+        let conn = Self::new(server_conn);
+        Ok(conn)
     }
 
     pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
         wait_for_another_peer(&mut self.stream).await?;
         debug!("Another peer successfully connected to proxy server");
         Ok(())
-    }
-
-    pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
-        let (mut server_conn, _response) = connect_async(format!("ws://{}", addr)).await?;
-
-        join_room(&mut server_conn, room_id).await?;
-
-        let conn = Self::new(server_conn);
-        Ok(conn)
     }
 
     pub async fn send(&mut self, msg: ClientMessage) -> Result<(), ConnectionError> {

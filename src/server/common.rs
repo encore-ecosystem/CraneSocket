@@ -1,10 +1,16 @@
 use std::net::SocketAddr;
 
-use crate::socket::{ListenerError, proxy::WebSocketListener as ProxyWebSocketListener};
+use tokio::net::TcpStream;
+
+use crate::socket::ListenerError;
+use crate::socket::proxy::TcpListener as ProxyTcpListener;
+use crate::socket::proxy::WebSocketListener as ProxyWebSocketListener;
+use crate::socket::upnp::TcpListener as UPnPTcpListener;
+use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
 
 pub enum WebSocketListener {
     ProxyWebSocketListener(ProxyWebSocketListener),
-    UPnPWebSocketListener(crate::socket::upnp::WebSocketListener),
+    UPnPWebSocketListener(UPnPWebSocketListener),
 }
 
 impl WebSocketListener {
@@ -27,6 +33,29 @@ impl WebSocketListener {
         match self {
             WebSocketListener::ProxyWebSocketListener(listener) => listener.get_local_addr(),
             WebSocketListener::UPnPWebSocketListener(listener) => listener.get_local_addr(),
+        }
+    }
+}
+
+pub enum TcpListener {
+    ProxyTcpListener(ProxyTcpListener),
+    UPnPTcpListener(UPnPTcpListener),
+}
+
+impl TcpListener {
+    pub async fn accept(
+        &self,
+    ) -> std::result::Result<(TcpStream, std::net::SocketAddr), ListenerError> {
+        match self {
+            TcpListener::ProxyTcpListener(listener) => listener.accept().await,
+            TcpListener::UPnPTcpListener(listener) => listener.accept().await,
+        }
+    }
+
+    pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
+        match self {
+            TcpListener::ProxyTcpListener(listener) => listener.get_local_addr(),
+            TcpListener::UPnPTcpListener(listener) => listener.get_local_addr(),
         }
     }
 }

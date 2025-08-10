@@ -5,23 +5,22 @@ use thiserror::Error;
 #[repr(u8)]
 pub enum Tags {
     // ServerMessage variants
-    RoomCreated = 0x01,
-    JoinedSuccessfully = 0x02,
-    ClientJoined = 0x03,
-    ClientLeft = 0x04,
-    ServerError = 0x05,
+    RoomCreated = 1,
+    JoinedSuccessfully = 2,
+    ClientJoined = 3,
+    ClientLeft = 4,
     // ClientMessage variants
-    CreateRoom = 0x06,
-    JoinRoom = 0x07,
-    LeaveRoom = 0x08,
-    ClientError = 0x09,
+    CreateRoom = 5,
+    JoinRoom = 6,
+    LeaveRoom = 7,
     // Shared variants (used by both)
-    Text = 0x0A,
-    Binary = 0x0B,
-    Ping = 0x0C,
-    Pong = 0x0D,
-    Close = 0x0E,
-    Frame = 0x0F,
+    Error = 8,
+    Text = 9,
+    Binary = 10,
+    Ping = 11,
+    Pong = 12,
+    Close = 13,
+    Frame = 14,
 }
 
 #[allow(dead_code)]
@@ -33,4 +32,6 @@ pub enum MessageError {
     InvalidUtf8,
     #[error("EmptyData")]
     EmptyData,
+    #[error("InsufficientData")]
+    InsufficientData,
 }

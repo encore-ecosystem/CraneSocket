@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::sync::mpsc::{self, error::TryRecvError};
-pub use ws::WebSocketTransport;
 
 use crate::server::{
     error::ProxyServerError,
@@ -10,6 +9,9 @@ use crate::server::{
 mod tcp;
 mod udp;
 mod ws;
+
+pub use tcp::TcpTransport;
+pub use ws::WebSocketTransport;
 
 #[allow(dead_code)]
 #[async_trait]

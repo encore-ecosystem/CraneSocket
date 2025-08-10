@@ -3,7 +3,8 @@ mod connections;
 mod listeners;
 
 pub use {
-    connections::TcpConnection, connections::UdpConnection, connections::WebSocketConnection,
+    connections::ReadHalf, connections::TcpConnection, connections::UdpConnection,
+    connections::WebSocketConnection, connections::WriteHalf,
 };
 pub use {
     listeners::ConnectionMethod, listeners::ConnectionProtocol, listeners::TcpListener,
