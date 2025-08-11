@@ -26,7 +26,7 @@ pub async fn join_room(
     debug!("Read tag sent by server");
     match tag[0] {
         x if x == Tags::JoinedSuccessfully as u8 => Ok(()),
-        _ => Err(ConnectionError::UnavailableRoom),
+        _ => Err(ConnectionError::RoomUnavailable),
     }
 }
 
@@ -47,7 +47,7 @@ pub async fn register(server_conn: &mut TcpStream) -> Result<String, ConnectionE
             let room_id = String::from_utf8(payload).unwrap();
             Ok(room_id)
         }
-        _ => Err(ConnectionError::UnavailableRoom),
+        _ => Err(ConnectionError::RoomUnavailable),
     }
 }
 

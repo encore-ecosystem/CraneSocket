@@ -99,7 +99,7 @@ async fn process_message(
             handle_leave_room(peer_id, &tx, &mut rooms_lock, &mut peer2room_lock).await?
         }
         ClientMessage::Error(e) => {
-            debug!("Processing server error: {}", e);
+            debug!("Processing client error: {}", e);
             send_error(&tx, e).await?
         }
         _ => {}

@@ -21,7 +21,7 @@ pub async fn join_room(
         ServerMessage::JoinedSuccessfully => Ok(()),
         e => {
             error!("{:?}", e);
-            Err(ConnectionError::UnavailableRoom)
+            Err(ConnectionError::RoomUnavailable)
         }
     }
 }

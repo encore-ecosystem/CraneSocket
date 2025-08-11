@@ -5,12 +5,10 @@ use crate::socket::upnp::{
     ports::{close_port, open_port},
 };
 
-mod common;
 mod connections;
 mod error;
 mod listeners;
 mod ports;
-pub mod stun;
 
 pub use connections::{TcpConnection, UdpConnection, WebSocketConnection};
 pub use error::*;

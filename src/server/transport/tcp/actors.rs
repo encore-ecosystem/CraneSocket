@@ -15,9 +15,9 @@ async fn app2socket_process_message(
     msg: ServerMessage,
     ws_sender: &mut WriteHalf,
 ) -> Result<(), ProxyServerError> {
-    match ws_sender.send(&msg.as_bytes()).await {
+    match ws_sender.send_all(&msg.as_bytes()).await {
         Ok(()) => {
-            debug!("Seccessfully sent message to peer_id={}", peer_id,);
+            debug!("Seccessfully sent message to peer_id={}", peer_id);
             Ok(())
         }
         Err(_) => {
@@ -98,6 +98,8 @@ async fn socket2app_process_message(
         return Ok(());
     }
 
+    debug!("handling msg: {:?}", msg);
+
     let msg = match ClientMessage::try_from(&msg[..]) {
         Ok(msg) => msg,
         Err(e) => {
@@ -115,7 +117,9 @@ async fn socket2app_process_message(
                 "Received invalid message, peer_id={}. Error: {}",
                 peer_id, e
             );
-            return Ok(());
+            return Err(ProxyServerError::InvalidData(
+                "Received invalid message".into(),
+            ));
         }
     };
     let result = recv_tx.send(msg).await;
@@ -163,6 +167,7 @@ pub async fn socket2app_actor(
                         );
 
                         if error_counter >= MAX_ERRORS_ALLOWED {
+                            let _ = recv_tx.send(ClientMessage::Error("Invalid message".into())).await;
                             let _ = recv_tx.send(ClientMessage::LeaveRoom).await;
                             send_max_errors_reached_msg(&peer_id, &shutdown_tx);
                             break;

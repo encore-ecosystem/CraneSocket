@@ -22,7 +22,7 @@ impl UdpConnection {
             }
             Err(e) => {
                 error!("Failed to connected to {}: {}", addr, e);
-                return Err(ConnectionError::Socket(e));
+                return Err(ConnectionError::Io(e));
             }
         };
 
@@ -52,7 +52,7 @@ impl UdpConnection {
             }
             Err(e) => {
                 error!("Failed to connected to {}", addr);
-                Err(ConnectionError::Socket(e))
+                Err(ConnectionError::Io(e))
             }
         }
     }
@@ -73,7 +73,7 @@ impl UdpConnection {
             }
             Err(e) => {
                 error!("Failed to send to peer {}: {}", peer_addr, e);
-                Err(ConnectionError::Io)
+                Err(ConnectionError::Socket)
             }
         }
     }
@@ -93,7 +93,7 @@ impl UdpConnection {
             }
             Err(e) => {
                 error!("Failed to read from peer {}: {}", peer_addr, e);
-                Err(ConnectionError::Io)
+                Err(ConnectionError::Socket)
             }
         }
     }

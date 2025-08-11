@@ -45,7 +45,7 @@ impl WebSocketConnection {
         sender: WebSocketSplitSink,
         receiver: WebSocketSplitStream,
     ) -> Result<Self, ConnectionError> {
-        let stream = SplitSink::reunite(sender, receiver).map_err(|_| ConnectionError::Io)?;
+        let stream = SplitSink::reunite(sender, receiver).map_err(|_| ConnectionError::Socket)?;
         Ok(Self { stream })
     }
 
@@ -57,7 +57,7 @@ impl WebSocketConnection {
         let raw: &MaybeTlsStream<TcpStream> = self.stream.get_ref();
         match raw {
             MaybeTlsStream::Plain(stream) => Ok(stream.local_addr()?),
-            _ => Err(ConnectionError::Socket(std::io::Error::other(
+            _ => Err(ConnectionError::Io(std::io::Error::other(
                 "Unsupported stream type",
             ))),
         }
@@ -67,7 +67,7 @@ impl WebSocketConnection {
         let raw: &MaybeTlsStream<TcpStream> = self.stream.get_ref();
         match raw {
             MaybeTlsStream::Plain(stream) => Ok(stream.peer_addr()?),
-            _ => Err(ConnectionError::Socket(std::io::Error::other(
+            _ => Err(ConnectionError::Io(std::io::Error::other(
                 "Unsupported stream type",
             ))),
         }

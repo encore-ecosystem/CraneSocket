@@ -6,9 +6,13 @@ use tokio::{
         TcpStream,
         tcp::{OwnedReadHalf, OwnedWriteHalf},
     },
+    time::timeout,
 };
 
-use crate::{server::message::Tags, socket::ConnectionError};
+use crate::{
+    server::{constant::READ_TIMEOUT_MS, message::Tags},
+    socket::ConnectionError,
+};
 
 mod connection_logic;
 use connection_logic::*;
@@ -27,7 +31,7 @@ impl TcpConnection {
         debug!("Connected to the proxy server");
 
         let room_id = register(&mut server_conn).await?;
-        debug!("Created a room on the proxy server. id = {}", room_id);
+        debug!("Created a room on the proxy server. room_id={}", room_id);
 
         Ok((Self::new(server_conn), room_id))
     }
@@ -49,7 +53,11 @@ impl TcpConnection {
         Ok(())
     }
 
-    pub async fn send(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
+    pub async fn send(&mut self, buf: &[u8]) -> Result<usize, ConnectionError> {
+        Ok(self.stream.write(buf).await?)
+    }
+
+    pub async fn send_all(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
         Ok(self.stream.write_all(buf).await?)
     }
 
@@ -57,7 +65,7 @@ impl TcpConnection {
         let peer_addr = self.stream.peer_addr().map_or_else(
             |e| {
                 log::error!("Failed to get peer address: {}", e);
-                "unknown".to_string()
+                format!("Failed to get peer address: {}", e)
             },
             |addr| addr.to_string(),
         );
@@ -68,7 +76,27 @@ impl TcpConnection {
             }
             Err(e) => {
                 error!("Failed to read from peer {}: {}", peer_addr, e);
-                Err(ConnectionError::Io)
+                Err(ConnectionError::Socket)
+            }
+        }
+    }
+
+    pub async fn recv_exact(&mut self, buf: &mut [u8]) -> Result<usize, ConnectionError> {
+        let peer_addr = self.stream.peer_addr().map_or_else(
+            |e| {
+                log::error!("Failed to get peer address: {}", e);
+                format!("Failed to get peer address: {}", e)
+            },
+            |addr| addr.to_string(),
+        );
+        match self.stream.read_exact(buf).await {
+            Ok(bytes_read) => {
+                debug!("Read {} bytes from peer {}", bytes_read, peer_addr);
+                Ok(bytes_read)
+            }
+            Err(e) => {
+                error!("Failed to read from peer {}: {}", peer_addr, e);
+                Err(ConnectionError::Socket)
             }
         }
     }
@@ -142,7 +170,7 @@ impl ReadHalf {
         let peer_addr = self.stream.peer_addr().map_or_else(
             |e| {
                 log::error!("Failed to get peer address: {}", e);
-                "unknown".to_string()
+                format!("Failed to get peer address: {}", e)
             },
             |addr| addr.to_string(),
         );
@@ -153,7 +181,27 @@ impl ReadHalf {
             }
             Err(e) => {
                 error!("Failed to read from peer {}: {}", peer_addr, e);
-                Err(ConnectionError::Io)
+                Err(ConnectionError::Socket)
+            }
+        }
+    }
+
+    pub async fn recv_exact(&mut self, buf: &mut [u8]) -> Result<usize, ConnectionError> {
+        let peer_addr = self.stream.peer_addr().map_or_else(
+            |e| {
+                log::error!("Failed to get peer address: {}", e);
+                format!("Failed to get peer address: {}", e)
+            },
+            |addr| addr.to_string(),
+        );
+        match self.stream.read_exact(buf).await {
+            Ok(bytes_read) => {
+                debug!("Read {} bytes from peer {}", bytes_read, peer_addr);
+                Ok(bytes_read)
+            }
+            Err(e) => {
+                error!("Failed to read from peer {}: {}", peer_addr, e);
+                Err(ConnectionError::Socket)
             }
         }
     }
@@ -161,8 +209,6 @@ impl ReadHalf {
     pub async fn next(&mut self) -> Result<Vec<u8>, ConnectionError> {
         let mut tag = [0u8; 1];
         self.stream.read_exact(&mut tag).await?;
-
-        debug!("1");
 
         if matches!(
             tag[0],
@@ -176,8 +222,6 @@ impl ReadHalf {
         ) {
             return Ok(tag.into());
         }
-
-        debug!("2");
 
         if !matches!(
             tag[0],
@@ -194,24 +238,28 @@ impl ReadHalf {
             ));
         }
 
-        debug!("3");
-
         let mut len_buf = [0u8; 8];
-        self.stream.read_exact(&mut len_buf).await?;
+        timeout(
+            tokio::time::Duration::from_millis(READ_TIMEOUT_MS),
+            self.stream.read_exact(&mut len_buf),
+        )
+        .await
+        .map_err(|_| ConnectionError::Timeout)?
+        .map_err(ConnectionError::Io)?;
         let len = u64::from_be_bytes(len_buf) as usize;
 
-        debug!("4");
-
         let mut payload = vec![0u8; len];
-        self.stream.read_exact(&mut payload).await?;
-
-        debug!("5");
+        timeout(
+            tokio::time::Duration::from_millis(READ_TIMEOUT_MS),
+            self.stream.read_exact(&mut payload),
+        )
+        .await
+        .map_err(|_| ConnectionError::Timeout)?
+        .map_err(ConnectionError::Io)?;
 
         let mut data = vec![tag[0]];
         data.extend_from_slice(&len_buf);
         data.extend_from_slice(&payload);
-
-        debug!("6");
 
         Ok(data)
     }
@@ -226,7 +274,11 @@ impl WriteHalf {
         Self { stream }
     }
 
-    pub async fn send(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
+    pub async fn send(&mut self, buf: &[u8]) -> Result<usize, ConnectionError> {
+        Ok(self.stream.write(buf).await?)
+    }
+
+    pub async fn send_all(&mut self, buf: &[u8]) -> Result<(), ConnectionError> {
         Ok(self.stream.write_all(buf).await?)
     }
 }
