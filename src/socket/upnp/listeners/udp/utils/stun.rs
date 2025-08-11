@@ -5,6 +5,7 @@ use tokio::net::lookup_host;
 
 use crate::socket::StunError;
 
+#[allow(dead_code)]
 pub async fn init_with_stun(socket: &UdpSocket) -> Result<SocketAddr, StunError> {
     let external_addr = get_external_addr(socket, None).await?;
 

@@ -234,8 +234,6 @@ async fn test_invalid_message_transfer() {
 
 #[tokio::test]
 async fn test_empty_message_transfer() {
-    dotenv::dotenv().ok();
-    env_logger::init();
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
     let server = timed(TcpProxyServer::bind(&bind_addr, false))

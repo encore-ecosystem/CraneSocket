@@ -5,14 +5,11 @@ use crate::socket::{
     ListenerError,
     upnp::{
         UPnPManager,
-        error::UPnPManagerError,
-        listeners::{
-            ConnectionMethod, ConnectionProtocol, udp::utils::init_with_stun, upnp::init_upnp,
-        },
+        listeners::{ConnectionProtocol, upnp::init_upnp},
     },
 };
 
-mod utils;
+pub mod utils;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -20,7 +17,6 @@ pub struct UdpListener {
     upnp_manager: Option<UPnPManager>,
     listener: UdpSocket,
     external_addr: SocketAddr,
-    conn_type: ConnectionMethod,
 }
 
 impl UdpListener {
@@ -32,31 +28,14 @@ impl UdpListener {
             .parse::<SocketAddr>()
             .unwrap();
 
-        if let Ok(upnp_manager) =
-            init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Udp).await
-        {
-            return Ok(UdpListener {
-                upnp_manager: Some(upnp_manager),
-                listener,
-                external_addr,
-                conn_type: ConnectionMethod::UPnP,
-            });
-        }
+        let upnp_manager =
+            init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Udp).await?;
 
-        if let Ok(external_addr) = init_with_stun(&listener).await {
-            return Ok(UdpListener {
-                upnp_manager: None,
-                listener,
-                external_addr,
-                conn_type: ConnectionMethod::Stun,
-            });
-        }
-
-        Err(ListenerError::Upnp(UPnPManagerError::Upnp(
-            easy_upnp::Error::CannotGetInterfaceAddress(std::io::Error::other(
-                "Could not bind socket",
-            )),
-        )))
+        Ok(UdpListener {
+            upnp_manager: Some(upnp_manager),
+            listener,
+            external_addr,
+        })
     }
 
     pub async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), ListenerError> {
