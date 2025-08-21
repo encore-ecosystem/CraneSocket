@@ -5,7 +5,7 @@ use tokio::net::TcpStream;
 use tokio::time::timeout;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::server::constant::PEER_CONNECTION_WAIT_TIMEOUT_SEC;
+use crate::server::constant::CLIENT_CONNECTION_WAIT_TIMEOUT_SEC;
 use crate::server::message::{ClientMessage, ServerMessage};
 use crate::socket::ConnectionError;
 
@@ -48,10 +48,10 @@ pub async fn register(
     Ok(room_id)
 }
 
-pub async fn wait_for_another_peer(
+pub async fn wait_for_another_client(
     server_conn: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
 ) -> Result<(), ConnectionError> {
-    let timeout_duration = Duration::from_secs(PEER_CONNECTION_WAIT_TIMEOUT_SEC);
+    let timeout_duration = Duration::from_secs(CLIENT_CONNECTION_WAIT_TIMEOUT_SEC);
 
     let msg = match timeout(timeout_duration, server_conn.next()).await {
         Ok(Some(Ok(msg))) => msg,

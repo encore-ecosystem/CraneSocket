@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error};
@@ -13,7 +15,7 @@ use crate::server::message::ServerMessage;
 use crate::server::transport::common::send_max_errors_reached_msg;
 
 async fn app2socket_process_message<S>(
-    peer_id: &str,
+    addr: &SocketAddr,
     msg: ServerMessage,
     ws_sender: &mut SplitSink<WebSocketStream<S>, Message>,
 ) -> Result<(), ProxyServerError>
@@ -22,20 +24,20 @@ where
 {
     match ws_sender.send(msg.into()).await {
         Ok(()) => {
-            debug!("Seccessfully sent message to peer_id={}", peer_id,);
+            debug!("Seccessfully sent message to peer_id={}", addr,);
             Ok(())
         }
         Err(_) => {
-            debug!("Failed to send message to peer_id={}", peer_id,);
+            debug!("Failed to send message to peer_id={}", addr,);
             Err(ProxyServerError::Send("Could not send message".into()))
         }
     }
 }
 
 pub async fn app2socket_actor<S>(
-    peer_id: String,
+    addr: SocketAddr,
     mut ws_sender: SplitSink<WebSocketStream<S>, Message>,
-    mut send_rx: mpsc::Receiver<ServerMessage>,
+    mut send_rx: mpsc::Receiver<(ServerMessage, SocketAddr)>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) where
@@ -45,13 +47,13 @@ pub async fn app2socket_actor<S>(
     loop {
         tokio::select! {
             biased;
-            Some(msg) = send_rx.recv() => {
-                if let Err(e) = app2socket_process_message(&peer_id, msg, &mut ws_sender).await
+            Some((msg, _)) = send_rx.recv() => {
+                if let Err(e) = app2socket_process_message(&addr, msg, &mut ws_sender).await
                 {
                     error_counter += 1;
                     error!(
                         "WebSocket send error, peer_id={}, error_count={}: {}",
-                        peer_id, error_counter, e
+                        addr, error_counter, e
                     );
 
                     if error_counter >= MAX_ERRORS_ALLOWED {
@@ -76,44 +78,44 @@ pub async fn app2socket_actor<S>(
                 }
             },
             _ = shutdown_rx.recv() => {
-                while let Ok(msg) = send_rx.try_recv() {
-                    let _ = app2socket_process_message(&peer_id, msg, &mut ws_sender).await;
+                while let Ok((msg, _)) = send_rx.try_recv() {
+                    let _ = app2socket_process_message(&addr, msg, &mut ws_sender).await;
                 }
                 break;
             }
         }
     }
-    debug!("App2Socket actor terminated, peer_id={}", peer_id);
+    debug!("App2Socket actor terminated, peer_id={}", addr);
 }
 
 async fn socket2app_process_message(
-    peer_id: &str,
+    addr: &SocketAddr,
     message: Message,
-    recv_tx: &mpsc::Sender<ClientMessage>,
+    recv_tx: &mpsc::Sender<(ClientMessage, SocketAddr)>,
 ) -> Result<(), ProxyServerError> {
     let message_len = message.len();
     if message_len > MAX_MESSAGE_SIZE {
         if let Err(e) = recv_tx
-            .send(ClientMessage::Error("Message too large".into()))
+            .send((ClientMessage::Error("Message too large".into()), *addr))
             .await
         {
             error!(
                 "Failed to notify client about oversized message, peer_id={}. Error: {}",
-                peer_id, e
+                addr, e
             );
         }
         return Ok(());
     }
 
-    let result = recv_tx.send(message.into()).await;
+    let result = recv_tx.send((message.into(), *addr)).await;
 
     result.map_err(|_| ProxyServerError::Send("Could not send message to app".into()))
 }
 
 pub async fn socket2app_actor<S>(
-    peer_id: String,
+    addr: SocketAddr,
     mut ws_receiver: SplitStream<WebSocketStream<S>>,
-    recv_tx: mpsc::Sender<ClientMessage>,
+    recv_tx: mpsc::Sender<(ClientMessage, SocketAddr)>,
     shutdown_tx: broadcast::Sender<()>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) where
@@ -126,19 +128,19 @@ pub async fn socket2app_actor<S>(
             Some(msg) = ws_receiver.next() => {
                 match msg {
                     Ok(msg) => {
-                        debug!("Received message from peer_id={}", peer_id);
-                        match socket2app_process_message(&peer_id, msg, &recv_tx).await {
+                        debug!("Received message from peer_id={}", addr);
+                        match socket2app_process_message(&addr, msg, &recv_tx).await {
                             Ok(()) => error_counter = 0,
                             Err(_) => {
                                 error_counter += 1;
                                 error!(
                                     "Receive message error, peer_id={}, error_count={}",
-                                    peer_id, error_counter
+                                    addr, error_counter
                                 );
 
                                 if error_counter >= MAX_ERRORS_ALLOWED {
-                                    let _ = recv_tx.send(ClientMessage::LeaveRoom).await;
-                                    send_max_errors_reached_msg(&peer_id, &shutdown_tx);
+                                    let _ = recv_tx.send((ClientMessage::LeaveRoom, addr)).await;
+                                    send_max_errors_reached_msg(&addr, &shutdown_tx);
                                     break;
                                 }
                             }
@@ -148,12 +150,12 @@ pub async fn socket2app_actor<S>(
                         error_counter += 1;
                         error!(
                             "Receive message error, peer_id={}, error_count={}. Error: {}",
-                            peer_id, error_counter, e
+                            addr, error_counter, e
                         );
 
                         if error_counter >= MAX_ERRORS_ALLOWED {
-                            let _ = recv_tx.send(ClientMessage::LeaveRoom).await;
-                            send_max_errors_reached_msg(&peer_id, &shutdown_tx);
+                            let _ = recv_tx.send((ClientMessage::LeaveRoom, addr)).await;
+                            send_max_errors_reached_msg(&addr, &shutdown_tx);
                             break;
                         }
                     }
@@ -164,5 +166,5 @@ pub async fn socket2app_actor<S>(
             }
         }
     }
-    debug!("Socket2App actor terminated, peer_id={}", peer_id);
+    debug!("Socket2App actor terminated, peer_id={}", addr);
 }

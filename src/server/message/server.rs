@@ -21,6 +21,7 @@ pub enum ServerMessage {
     JoinedSuccessfully,
     ClientJoined,
     ClientLeft,
+    ServerClosed,
     Error(String),
 }
 
@@ -55,6 +56,7 @@ impl From<TungsteniteMessage> for ServerMessage {
                     x if x == Tags::JoinedSuccessfully as u8 => ServerMessage::JoinedSuccessfully,
                     x if x == Tags::ClientJoined as u8 => ServerMessage::ClientJoined,
                     x if x == Tags::ClientLeft as u8 => ServerMessage::ClientLeft,
+                    x if x == Tags::ServerClosed as u8 => ServerMessage::ServerClosed,
                     x if x == Tags::Error as u8 => {
                         let s =
                             String::from_utf8(payload.to_vec()).unwrap_or_else(|_| String::new());
@@ -101,7 +103,10 @@ impl From<ServerMessage> for TungsteniteMessage {
             }
             ServerMessage::ClientLeft => {
                 let bin = vec![Tags::ClientLeft as u8];
-
+                TungsteniteMessage::binary(bin)
+            }
+            ServerMessage::ServerClosed => {
+                let bin = vec![Tags::ServerClosed as u8];
                 TungsteniteMessage::binary(bin)
             }
             ServerMessage::Error(s) => {
@@ -161,6 +166,9 @@ impl From<ServerMessage> for Vec<u8> {
             ServerMessage::ClientLeft => {
                 vec![Tags::ClientLeft as u8]
             }
+            ServerMessage::ServerClosed => {
+                vec![Tags::ServerClosed as u8]
+            }
             ServerMessage::Error(s) => {
                 let mut bin = vec![Tags::Error as u8];
                 bin.extend_from_slice(&(s.len() as u64).to_be_bytes());
@@ -185,6 +193,7 @@ impl TryFrom<&[u8]> for ServerMessage {
             match tag {
                 x if x == Tags::JoinedSuccessfully as u8 => Ok(ServerMessage::JoinedSuccessfully),
                 x if x == Tags::ClientJoined as u8 => Ok(ServerMessage::ClientJoined),
+                x if x == Tags::ServerClosed as u8 => Ok(ServerMessage::ServerClosed),
                 x if x == Tags::ClientLeft as u8 => Ok(ServerMessage::ClientLeft),
                 x if x == Tags::Close as u8 => Ok(ServerMessage::Close(None)),
                 x if x == Tags::Frame as u8 => Ok(ServerMessage::Frame(Frame::from_payload(
@@ -335,6 +344,7 @@ impl ServerMessage {
             ServerMessage::JoinedSuccessfully => Ok("Joined Successfully"),
             ServerMessage::ClientLeft => Ok("Client Left"),
             ServerMessage::ClientJoined => Ok("Client Joined"),
+            ServerMessage::ServerClosed => Ok("Server Closed"),
         }
     }
 

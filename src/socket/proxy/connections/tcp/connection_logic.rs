@@ -4,21 +4,16 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 
-use crate::server::constant::PEER_CONNECTION_WAIT_TIMEOUT_SEC;
-use crate::server::message::Tags;
+use crate::server::constant::CLIENT_CONNECTION_WAIT_TIMEOUT_SEC;
+use crate::server::message::{ClientMessage, Tags};
 use crate::socket::ConnectionError;
 
 pub async fn join_room(
     server_conn: &mut TcpStream,
     room_id: String,
 ) -> Result<(), ConnectionError> {
-    let tag = Tags::JoinRoom;
-    server_conn.write_all(&[tag as u8]).await.unwrap();
-    server_conn
-        .write_all(&(room_id.len() as u64).to_be_bytes())
-        .await
-        .unwrap();
-    server_conn.write_all(room_id.as_bytes()).await.unwrap();
+    let msg = ClientMessage::JoinRoom(room_id);
+    server_conn.write_all(&msg.as_bytes()).await.unwrap();
     debug!("Sent join room request");
 
     let mut tag = [0u8; 1];
@@ -31,8 +26,8 @@ pub async fn join_room(
 }
 
 pub async fn register(server_conn: &mut TcpStream) -> Result<String, ConnectionError> {
-    let tag = Tags::CreateRoom;
-    server_conn.write_all(&[tag as u8]).await.unwrap();
+    let msg = ClientMessage::CreateRoom;
+    server_conn.write_all(&msg.as_bytes()).await.unwrap();
 
     let mut tag = [0u8; 1];
     server_conn.read_exact(&mut tag).await?;
@@ -51,8 +46,8 @@ pub async fn register(server_conn: &mut TcpStream) -> Result<String, ConnectionE
     }
 }
 
-pub async fn wait_for_another_peer(server_conn: &mut TcpStream) -> Result<(), ConnectionError> {
-    let timeout_duration = Duration::from_secs(PEER_CONNECTION_WAIT_TIMEOUT_SEC);
+pub async fn wait_for_another_client(server_conn: &mut TcpStream) -> Result<(), ConnectionError> {
+    let timeout_duration = Duration::from_secs(CLIENT_CONNECTION_WAIT_TIMEOUT_SEC);
 
     let result = timeout(timeout_duration, async {
         let mut tag = [0u8; 1];

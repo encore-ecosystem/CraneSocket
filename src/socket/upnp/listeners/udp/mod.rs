@@ -14,8 +14,8 @@ pub mod utils;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct UdpListener {
-    upnp_manager: Option<UPnPManager>,
-    listener: UdpSocket,
+    upnp_manager: UPnPManager,
+    socket: UdpSocket,
     external_addr: SocketAddr,
 }
 
@@ -32,26 +32,26 @@ impl UdpListener {
             init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Udp).await?;
 
         Ok(UdpListener {
-            upnp_manager: Some(upnp_manager),
-            listener,
+            upnp_manager,
+            socket: listener,
             external_addr,
         })
     }
 
     pub async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), ListenerError> {
-        Ok(self.listener.recv_from(buf).await?)
+        Ok(self.socket.recv_from(buf).await?)
     }
 
     pub async fn send_to(&self, buf: &[u8], target: &SocketAddr) -> Result<usize, ListenerError> {
-        Ok(self.listener.send_to(buf, target).await?)
+        Ok(self.socket.send_to(buf, target).await?)
     }
 
     pub fn as_raw_listener(&self) -> &UdpSocket {
-        &self.listener
+        &self.socket
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
-        Ok(self.listener.local_addr()?)
+        Ok(self.socket.local_addr()?)
     }
 
     pub fn get_external_addr(&self) -> SocketAddr {

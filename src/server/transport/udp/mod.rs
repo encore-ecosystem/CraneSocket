@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures_util::StreamExt;
 use log::debug;
+use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -12,70 +14,61 @@ use crate::server::error::ProxyServerError;
 use crate::server::message::ClientMessage;
 use crate::server::message::ServerMessage;
 use crate::server::transport::Transport;
+use crate::socket::proxy::UdpListener;
 
 mod actors;
-
 use actors::*;
 
-pub struct WebSocketTransport {
-    addr: SocketAddr,
+pub struct UdpTransport {
     send_tx: mpsc::Sender<(ServerMessage, SocketAddr)>,
     recv_rx: mpsc::Receiver<(ClientMessage, SocketAddr)>,
 }
 
-impl WebSocketTransport {
+impl UdpTransport {
     pub async fn new(
-        ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-        addr: SocketAddr,
+        socket: Arc<UdpListener>,
         shutdown_tx: broadcast::Sender<()>,
+        error_counter_per_client: Arc<RwLock<HashMap<SocketAddr, usize>>>,
     ) -> Result<Self, ProxyServerError> {
-        let (ws_sender, ws_receiver) = ws_stream.split();
-
         let (send_tx, send_rx) =
             mpsc::channel::<(ServerMessage, SocketAddr)>(MPSC_CHANNEL_CAPACITY);
         let (recv_tx, recv_rx) =
             mpsc::channel::<(ClientMessage, SocketAddr)>(MPSC_CHANNEL_CAPACITY);
 
-        let addr_clone = addr;
-        let shutdown_tx_clone = shutdown_tx.clone();
+        let socket_clone = socket.clone();
+        let error_counter_per_client_clone = error_counter_per_client.clone();
         let shutdown_tx_sub = shutdown_tx.subscribe();
         tokio::spawn(async move {
             app2socket_actor(
-                addr_clone,
-                ws_sender,
+                socket_clone,
                 send_rx,
-                shutdown_tx_clone,
                 shutdown_tx_sub,
+                error_counter_per_client_clone,
             )
             .await
         });
         debug!("app2socket actor started");
 
-        let addr_clone = addr;
-        let shutdown_tx_clone = shutdown_tx.clone();
+        let socket_clone = socket.clone();
         let shutdown_tx_sub = shutdown_tx.subscribe();
+        let error_counter_per_client_clone = error_counter_per_client.clone();
         tokio::spawn(async move {
             socket2app_actor(
-                addr_clone,
-                ws_receiver,
+                socket_clone,
                 recv_tx,
-                shutdown_tx_clone,
                 shutdown_tx_sub,
+                error_counter_per_client_clone,
             )
             .await
         });
         debug!("socket2app actor started");
 
-        Ok(WebSocketTransport {
-            addr,
-            send_tx,
-            recv_rx,
-        })
+        Ok(UdpTransport { send_tx, recv_rx })
     }
 }
 
 #[async_trait]
-impl Transport for WebSocketTransport {
+impl Transport for UdpTransport {
     async fn send(&self, msg: ServerMessage, addr: SocketAddr) -> Result<(), ProxyServerError> {
         self.send_tx
             .send((msg, addr))
@@ -93,7 +86,7 @@ impl Transport for WebSocketTransport {
     }
 
     fn get_client_addr(&self) -> Option<SocketAddr> {
-        Some(self.addr)
+        None
     }
 
     fn get_sender(&self) -> mpsc::Sender<(ServerMessage, SocketAddr)> {

@@ -2,9 +2,14 @@ use log::{debug, error};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-use crate::socket::ConnectionError;
+use crate::{
+    server::{constant::MAX_MESSAGE_SIZE, message::Tags},
+    socket::ConnectionError,
+};
 
-#[allow(dead_code)]
+mod connection_logic;
+use connection_logic::*;
+
 pub struct UdpConnection {
     socket: UdpSocket,
 }
@@ -13,11 +18,11 @@ impl UdpConnection {
     pub async fn bind(addr: &SocketAddr) -> Result<Self, ConnectionError> {
         let socket = match UdpSocket::bind(&addr).await {
             Ok(socket) => {
-                debug!("Successfully bound socket to {}", addr);
+                debug!("Successfully bound socket to {}", socket.local_addr()?);
                 socket
             }
             Err(e) => {
-                error!("Failed to connected to {}: {}", addr, e);
+                error!("Failed to bind socket to {}: {}", addr, e);
                 return Err(ConnectionError::Io(e));
             }
         };
@@ -25,19 +30,33 @@ impl UdpConnection {
         Ok(UdpConnection { socket })
     }
 
-    pub async fn connect(&self, addr: &SocketAddr) -> Result<(), ConnectionError> {
-        // match self.socket.connect(addr).await {
-        //     Ok(()) => {
-        //         debug!("Successfully connected to {}", addr);
-        //         Ok(())
-        //     }
-        //     Err(e) => {
-        //         error!("Failed to connected to {}", addr);
-        //         Err(ConnectionError::Socket(e))
-        //     }
-        // }
+    pub async fn create_room(&mut self, addr: &SocketAddr) -> Result<String, ConnectionError> {
+        self.socket.connect(addr).await?;
+        debug!("Connected to the proxy server");
 
-        unimplemented!()
+        let room_id = register(&mut self.socket).await?;
+        debug!("Created a room on the proxy server. room_id={}", room_id);
+
+        Ok(room_id)
+    }
+
+    pub async fn join_room(
+        &mut self,
+        addr: &SocketAddr,
+        room_id: String,
+    ) -> Result<(), ConnectionError> {
+        self.socket.connect(addr).await?;
+        debug!("Connected to the proxy server");
+
+        join_room(&mut self.socket, room_id).await?;
+        debug!("Joined the room on the proxy server");
+        Ok(())
+    }
+
+    pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
+        wait_for_another_peer(&mut self.socket).await?;
+        debug!("Another peer successfully connected to proxy server");
+        Ok(())
     }
 
     pub async fn send(&self, buf: &[u8]) -> Result<usize, ConnectionError> {
@@ -79,5 +98,81 @@ impl UdpConnection {
                 Err(ConnectionError::Socket)
             }
         }
+    }
+
+    pub async fn next(&self) -> Result<Vec<u8>, ConnectionError> {
+        let mut buf = vec![0u8; MAX_MESSAGE_SIZE];
+        let len = self.socket.recv(&mut buf).await?;
+
+        let data = &buf[..len];
+
+        if data.is_empty() {
+            return Err(ConnectionError::UnexpectedMessage(
+                "Received empty datagram".into(),
+            ));
+        }
+
+        let tag = data[0];
+        if matches!(
+            tag,
+            x if x == Tags::CreateRoom as u8
+                || x == Tags::LeaveRoom as u8
+                || x == Tags::JoinedSuccessfully as u8
+                || x == Tags::ClientJoined as u8
+                || x == Tags::ClientLeft as u8
+                || x == Tags::ServerClosed as u8
+                || x == Tags::Close as u8
+                || x == Tags::Frame as u8
+        ) {
+            if len != 1 {
+                return Err(ConnectionError::UnexpectedMessage(format!(
+                    "Expected exactly 1 byte for tag-only message, got {}",
+                    len
+                )));
+            }
+            return Ok(vec![tag]);
+        }
+
+        if !matches!(
+            tag,
+            x if x == Tags::Text as u8
+                || x == Tags::Binary as u8
+                || x == Tags::Ping as u8
+                || x == Tags::Pong as u8
+                || x == Tags::RoomCreated as u8
+                || x == Tags::JoinRoom as u8
+                || x == Tags::Error as u8
+        ) {
+            return Err(ConnectionError::UnexpectedMessage(
+                "Received a message with an unexpected tag".into(),
+            ));
+        }
+
+        if len < 9 {
+            return Err(ConnectionError::UnexpectedMessage(format!(
+                "Message too short, expected at least 9 bytes, got {}",
+                len
+            )));
+        }
+
+        let payload_len = u64::from_be_bytes(data[1..9].try_into().unwrap()) as usize;
+        let expected_len = 1 + 8 + payload_len;
+
+        if len != expected_len {
+            return Err(ConnectionError::UnexpectedMessage(format!(
+                "Expected exactly {} bytes (tag + length + payload), got {}",
+                expected_len, len
+            )));
+        }
+
+        Ok(data.to_vec())
+    }
+
+    pub async fn close(&mut self) -> Result<(), ConnectionError> {
+        leave_room(&mut self.socket).await
+    }
+
+    pub fn get_local_addr(&self) -> Result<SocketAddr, ConnectionError> {
+        Ok(self.socket.local_addr()?)
     }
 }

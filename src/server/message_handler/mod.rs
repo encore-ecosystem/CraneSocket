@@ -1,9 +1,11 @@
+use std::net::SocketAddr;
+
 use log::debug;
 use log::error;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
-use crate::server::Peer2Room;
+use crate::server::Client2Room;
 use crate::server::Rooms;
 use crate::server::error::ProxyServerError;
 use crate::server::message::ClientMessage;
@@ -22,11 +24,11 @@ use logic::*;
 pub async fn handle_message<T: Transport>(
     mut transport: T,
     rooms: Rooms,
-    peer2room: Peer2Room,
+    client2room: Client2Room,
     shutdown_tx: broadcast::Sender<()>,
 ) -> Result<(), ProxyServerError> {
-    let peer_id = transport.peer_id().to_string();
-    let tx = transport.sender();
+    let addr = transport.get_client_addr();
+    let tx = transport.get_sender();
     let mut shutdown_rx = shutdown_tx.subscribe();
 
     loop {
@@ -34,28 +36,37 @@ pub async fn handle_message<T: Transport>(
             biased;
             Some(msg_result) = transport.recv() => {
                 match msg_result {
-                    Ok(msg) => {
-                        if let Err(e) = process_message(&peer_id, msg, tx.clone(), &rooms, &peer2room).await {
-                            error!("Error processing message for peer {}: {:?}", peer_id, e);
-                            send_error(&tx, "Internal error".to_string()).await?;
+                    Ok((msg, addr)) => {
+                        if let Err(e) = process_message(addr, msg, tx.clone(), &rooms, &client2room).await {
+                            error!("Error processing message for peer {}: {:?}", addr, e);
+                            send_error(&tx, &addr, "Internal server error".to_string()).await?;
                         }
                     },
                     Err(e) => {
-                        error!("Transport error for peer {}: {:?}", peer_id, e);
+                        match addr {
+                            Some(addr) => error!("Transport error for {}: {:?}", addr, e),
+                            None => error!("UDP Transport error: {:?}", e),
+                        };
                         let _ = shutdown_tx.send(());
                     }
                 }
             }
             _ = shutdown_rx.recv() => {
-                debug!("Shutdown signal received for peer: {}", peer_id);
-                while let Ok(msg) = transport.try_recv() {
-                    if let Err(e) = process_message(&peer_id, msg, tx.clone(), &rooms, &peer2room).await {
-                        error!("Error flushing message for peer {}: {:?}", peer_id, e);
+                match addr {
+                    Some(addr) => debug!("Shutdown signal received for peer: {}", addr),
+                    None => error!("Shutdown signal received"),
+                };
+                while let Ok((msg, addr)) = transport.try_recv() {
+                    if let Err(e) = process_message(addr, msg, tx.clone(), &rooms, &client2room).await {
+                        error!("Error flushing message for peer {}: {:?}", addr, e);
                     }
                 }
-                let mut rooms = rooms.write().await;
-                let mut peer2room = peer2room.write().await;
-                handle_leave_room(&peer_id, &tx, &mut rooms, &mut peer2room).await?;
+                let mut rooms_lock = rooms.write().await;
+                let mut client2room_lock = client2room.write().await;
+                match addr {
+                    Some(addr) => handle_leave_room(addr, &tx, &mut rooms_lock, &mut client2room_lock).await?,
+                    None => close_server(&tx, &mut client2room_lock).await?,
+                };
                 break;
             }
         }
@@ -65,42 +76,42 @@ pub async fn handle_message<T: Transport>(
 }
 
 async fn process_message(
-    peer_id: &str,
+    addr: SocketAddr,
     msg: ClientMessage,
-    tx: mpsc::Sender<ServerMessage>,
+    tx: mpsc::Sender<(ServerMessage, SocketAddr)>,
     rooms: &Rooms,
-    peer2room: &Peer2Room,
+    client2room: &Client2Room,
 ) -> Result<(), ProxyServerError> {
     let mut rooms_lock = rooms.write().await;
-    let mut peer2room_lock = peer2room.write().await;
+    let mut client2room_lock = client2room.write().await;
     match msg {
         ClientMessage::Text(data) => {
-            drop((rooms_lock, peer2room_lock));
+            drop((rooms_lock, client2room_lock));
             let rooms = rooms.read().await;
-            let peer2room = peer2room.read().await;
-            handle_text_data(peer_id, &tx, data.to_string(), &rooms, &peer2room).await?
+            let client2room = client2room.read().await;
+            handle_text_data(addr, &tx, data.to_string(), &rooms, &client2room).await?
         }
         ClientMessage::Binary(data) => {
-            drop((rooms_lock, peer2room_lock));
+            drop((rooms_lock, client2room_lock));
             let rooms = rooms.read().await;
-            let peer2room = peer2room.read().await;
-            handle_binary_data(peer_id, &tx, data.to_vec(), &rooms, &peer2room).await?;
+            let client2room = client2room.read().await;
+            handle_binary_data(addr, &tx, data.to_vec(), &rooms, &client2room).await?;
         }
         ClientMessage::CreateRoom => {
-            handle_create_room(peer_id, tx.clone(), &mut rooms_lock, &mut peer2room_lock).await?
+            handle_create_room(addr, tx.clone(), &mut rooms_lock, &mut client2room_lock).await?
         }
         ClientMessage::JoinRoom(room_id) => {
-            handle_join_room(peer_id, room_id, &tx, &mut rooms_lock, &mut peer2room_lock).await?
+            handle_join_room(addr, room_id, &tx, &mut rooms_lock, &mut client2room_lock).await?
         }
         ClientMessage::LeaveRoom => {
-            handle_leave_room(peer_id, &tx, &mut rooms_lock, &mut peer2room_lock).await?
+            handle_leave_room(addr, &tx, &mut rooms_lock, &mut client2room_lock).await?
         }
         ClientMessage::Close(_) => {
-            handle_leave_room(peer_id, &tx, &mut rooms_lock, &mut peer2room_lock).await?
+            handle_leave_room(addr, &tx, &mut rooms_lock, &mut client2room_lock).await?
         }
         ClientMessage::Error(e) => {
             debug!("Processing client error: {}", e);
-            send_error(&tx, e).await?
+            send_error(&tx, &addr, e).await?
         }
         _ => {}
     }

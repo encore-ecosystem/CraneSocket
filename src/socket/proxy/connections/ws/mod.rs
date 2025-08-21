@@ -52,7 +52,7 @@ impl WebSocketConnection {
     }
 
     pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
-        wait_for_another_peer(&mut self.stream).await?;
+        wait_for_another_client(&mut self.stream).await?;
         debug!("Another peer successfully connected to proxy server");
         Ok(())
     }

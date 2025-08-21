@@ -48,7 +48,7 @@ impl TcpConnection {
     }
 
     pub async fn wait_for_client(&mut self) -> Result<(), ConnectionError> {
-        wait_for_another_peer(&mut self.stream).await?;
+        wait_for_another_client(&mut self.stream).await?;
         debug!("Another peer successfully connected to proxy server");
         Ok(())
     }
@@ -110,6 +110,7 @@ impl TcpConnection {
             x if x == Tags::CreateRoom as u8
                 || x == Tags::LeaveRoom as u8
                 || x == Tags::JoinedSuccessfully as u8
+                || x == Tags::ServerClosed as u8
                 || x == Tags::ClientJoined as u8
                 || x == Tags::ClientLeft as u8
                 || x == Tags::Close as u8
@@ -152,8 +153,12 @@ impl TcpConnection {
         (ReadHalf::new(receiver), WriteHalf::new(sender))
     }
 
-    pub async fn close(&mut self) -> std::io::Result<()> {
-        self.stream.shutdown().await
+    pub async fn flush(&mut self) -> Result<(), ConnectionError> {
+        self.stream.flush().await.map_err(ConnectionError::Io)
+    }
+
+    pub async fn close(&mut self) -> Result<(), ConnectionError> {
+        self.stream.shutdown().await.map_err(ConnectionError::Io)
     }
 }
 

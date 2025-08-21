@@ -2,6 +2,8 @@ use std::net::SocketAddr;
 
 use tokio::net::TcpStream;
 
+use crate::server::Rooms;
+use crate::server::message::ServerMessage;
 use crate::socket::ListenerError;
 use crate::socket::proxy::TcpListener as ProxyTcpListener;
 use crate::socket::proxy::WebSocketListener as ProxyWebSocketListener;
@@ -56,6 +58,18 @@ impl TcpListener {
         match self {
             TcpListener::ProxyTcpListener(listener) => listener.get_local_addr(),
             TcpListener::UPnPTcpListener(listener) => listener.get_local_addr(),
+        }
+    }
+}
+
+pub async fn close_server(rooms: Rooms) {
+    let rooms_lock = rooms.read().await;
+    for room in rooms_lock.values() {
+        for (client_addr, sender) in room.iter() {
+            sender
+                .send((ServerMessage::ServerClosed, *client_addr))
+                .await
+                .unwrap()
         }
     }
 }

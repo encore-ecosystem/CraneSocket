@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 
 use tokio::sync::{mpsc, oneshot};
 use upnpsocket::{
-    server::{TcpProxyServer, message::ServerMessage},
-    socket::proxy::TcpConnection,
+    server::{UdpProxyServer, message::ServerMessage},
+    socket::proxy::UdpConnection,
 };
 
 use crate::{MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
@@ -12,7 +12,7 @@ use crate::{MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
 async fn test_create_room() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+    let server = timed(UdpProxyServer::bind(&bind_addr, false))
         .await
         .unwrap();
     let server_addr = server.get_local_addr().unwrap();
@@ -25,16 +25,14 @@ async fn test_create_room() {
     });
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
-    let (mut first_conn, _) = timed(TcpConnection::create_room(&server_addr))
-        .await
-        .unwrap();
+    let mut first_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    timed(first_conn.create_room(&server_addr)).await.unwrap();
 
     assert_eq!(rooms.read().await.len(), 1);
     assert_eq!(client2room.read().await.len(), 1);
 
-    let (mut second_conn, _) = timed(TcpConnection::create_room(&server_addr))
-        .await
-        .unwrap();
+    let mut second_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    timed(second_conn.create_room(&server_addr)).await.unwrap();
 
     assert_eq!(rooms.read().await.len(), 2);
     assert_eq!(client2room.read().await.len(), 2);
@@ -58,7 +56,7 @@ async fn test_create_room() {
 async fn test_create_and_join_room() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+    let server = timed(UdpProxyServer::bind(&bind_addr, false))
         .await
         .unwrap();
     let server_addr = server.get_local_addr().unwrap();
@@ -71,14 +69,16 @@ async fn test_create_and_join_room() {
     });
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
-    let (mut create_room_conn, room_id) = timed(TcpConnection::create_room(&server_addr))
+    let mut create_room_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    let room_id = timed(create_room_conn.create_room(&server_addr))
         .await
         .unwrap();
 
     assert_eq!(rooms.read().await.len(), 1);
     assert_eq!(client2room.read().await.len(), 1);
 
-    let mut join_room_conn = timed(TcpConnection::join_room(&server_addr, room_id))
+    let mut join_room_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    timed(join_room_conn.join_room(&server_addr, room_id))
         .await
         .unwrap();
 
@@ -86,7 +86,6 @@ async fn test_create_and_join_room() {
     assert_eq!(client2room.read().await.len(), 2);
 
     let msg = timed(create_room_conn.next()).await.unwrap();
-
     assert_eq!(msg, ServerMessage::ClientJoined.as_bytes());
 
     timed(join_room_conn.close()).await.unwrap();
@@ -108,7 +107,7 @@ async fn test_create_and_join_room() {
 async fn test_join_nonexisting_room() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+    let server = timed(UdpProxyServer::bind(&bind_addr, false))
         .await
         .unwrap();
     let server_addr = server.get_local_addr().unwrap();
@@ -125,7 +124,8 @@ async fn test_join_nonexisting_room() {
     assert_eq!(client2room.read().await.len(), 0);
 
     let room_id = "123".to_string();
-    let res = timed(TcpConnection::join_room(&server_addr, room_id))
+    let mut join_room_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    let res = timed(join_room_conn.join_room(&server_addr, room_id))
         .await
         .is_err();
 
@@ -134,7 +134,8 @@ async fn test_join_nonexisting_room() {
     assert_eq!(client2room.read().await.len(), 0);
 
     let room_id = "".to_string();
-    let res = timed(TcpConnection::join_room(&server_addr, room_id))
+    let mut join_room_conn = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    let res = timed(join_room_conn.join_room(&server_addr, room_id))
         .await
         .is_err();
 
@@ -149,7 +150,7 @@ async fn test_join_nonexisting_room() {
 async fn test_early_server_shutdown() {
     let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
 
-    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+    let server = timed(UdpProxyServer::bind(&bind_addr, false))
         .await
         .unwrap();
     let server_addr = server.get_local_addr().unwrap();
@@ -163,21 +164,21 @@ async fn test_early_server_shutdown() {
     let (tx1, mut rx1) = mpsc::channel::<ServerMessage>(MPSC_CHANNEL_CAPACITY);
     let (tx2, mut rx2) = mpsc::channel::<ServerMessage>(MPSC_CHANNEL_CAPACITY);
 
-    let (mut stream, room_id) = timed(TcpConnection::create_room(&server_addr))
-        .await
-        .unwrap();
+    let mut socket = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+    let room_id = timed(socket.create_room(&server_addr)).await.unwrap();
     let receiver_handle = tokio::spawn(async move {
-        timed(stream.wait_for_client()).await.unwrap();
-        let data = timed(stream.next()).await.unwrap();
+        timed(socket.wait_for_client()).await.unwrap();
+        let data = timed(socket.next()).await.unwrap();
         let msg = ServerMessage::try_from(&data[..]).unwrap();
         timed(tx1.send(msg)).await.unwrap();
     });
 
     let sender_handle = tokio::spawn(async move {
-        let mut stream = timed(TcpConnection::join_room(&server_addr, room_id))
+        let mut socket = timed(UdpConnection::bind(&bind_addr)).await.unwrap();
+        timed(socket.join_room(&server_addr, room_id))
             .await
             .unwrap();
-        let data = timed(stream.next()).await.unwrap();
+        let data = timed(socket.next()).await.unwrap();
         let msg = ServerMessage::try_from(&data[..]).unwrap();
         timed(tx2.send(msg)).await.unwrap();
     });

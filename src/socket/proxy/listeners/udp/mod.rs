@@ -1,38 +1,119 @@
+use log::{debug, error};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-use crate::socket::ListenerError;
+use crate::{
+    server::{constant::MAX_MESSAGE_SIZE, message::Tags},
+    socket::ListenerError,
+};
 
 mod utils;
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct UdpListener {
-    listener: UdpSocket,
+    socket: UdpSocket,
 }
 
 impl UdpListener {
     pub async fn bind(addr: &SocketAddr) -> Result<Self, ListenerError> {
-        // let listener = UdpSocket::bind(addr).await?;
+        let listener = UdpSocket::bind(addr).await?;
 
-        // Ok(Self { listener })
-
-        unimplemented!()
+        Ok(UdpListener { socket: listener })
     }
 
     pub async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), ListenerError> {
-        Ok(self.listener.recv_from(buf).await?)
+        match self.socket.recv_from(buf).await {
+            Ok((bytes_sent, addr)) => {
+                debug!("Received {} bytes from {}", bytes_sent, addr);
+                Ok((bytes_sent, addr))
+            }
+            Err(e) => {
+                error!("Failed to receive: {}", e);
+                Err(ListenerError::Socket)
+            }
+        }
     }
 
-    pub async fn send_to(&self, buf: &[u8], target: &SocketAddr) -> Result<usize, ListenerError> {
-        Ok(self.listener.send_to(buf, target).await?)
+    pub async fn next_from(&self) -> Result<(Vec<u8>, SocketAddr), ListenerError> {
+        let mut buf = vec![0u8; MAX_MESSAGE_SIZE];
+        let (len, addr) = self.socket.recv_from(&mut buf).await?;
+
+        let data = &buf[..len];
+
+        if data.is_empty() {
+            error!("Received empty datagram");
+            return Err(ListenerError::InvalidDatagramFrom(addr));
+        }
+
+        let tag = data[0];
+        if matches!(
+            tag,
+            x if x == Tags::CreateRoom as u8
+                || x == Tags::LeaveRoom as u8
+                || x == Tags::JoinedSuccessfully as u8
+                || x == Tags::ClientJoined as u8
+                || x == Tags::ClientLeft as u8
+                || x == Tags::Close as u8
+                || x == Tags::Frame as u8
+        ) {
+            if len != 1 {
+                error!("Expected exactly 1 byte for tag-only message, got {}", len);
+                return Err(ListenerError::InvalidDatagramFrom(addr));
+            }
+            return Ok((vec![tag], addr));
+        }
+
+        if !matches!(
+            tag,
+            x if x == Tags::Text as u8
+                || x == Tags::Binary as u8
+                || x == Tags::Ping as u8
+                || x == Tags::Pong as u8
+                || x == Tags::RoomCreated as u8
+                || x == Tags::JoinRoom as u8
+                || x == Tags::Error as u8
+        ) {
+            error!("Received a message with an unexpected tag");
+            return Err(ListenerError::InvalidDatagramFrom(addr));
+        }
+
+        if len < 9 {
+            error!("Message too short, expected at least 9 bytes, got {}", len);
+            return Err(ListenerError::InvalidDatagramFrom(addr));
+        }
+
+        let payload_len = u64::from_be_bytes(data[1..9].try_into().unwrap()) as usize;
+        let expected_len = 1 + 8 + payload_len;
+
+        if len != expected_len {
+            error!(
+                "Expected exactly {} bytes (tag + length + payload), got {}",
+                expected_len, len
+            );
+            return Err(ListenerError::InvalidDatagramFrom(addr));
+        }
+
+        Ok((data.to_vec(), addr))
     }
 
-    pub fn raw_listener(&self) -> &UdpSocket {
-        &self.listener
+    pub async fn send_to(&self, buf: &[u8], addr: &SocketAddr) -> Result<usize, ListenerError> {
+        match self.socket.send_to(buf, addr).await {
+            Ok(bytes_sent) => {
+                debug!("Sent {} bytes to {}", bytes_sent, addr);
+                Ok(bytes_sent)
+            }
+            Err(e) => {
+                error!("Failed to send to {}: {}", addr, e);
+                Err(ListenerError::Socket)
+            }
+        }
+    }
+
+    pub fn as_raw_listener(&self) -> &UdpSocket {
+        &self.socket
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
-        Ok(self.listener.local_addr()?)
+        Ok(self.socket.local_addr()?)
     }
 }

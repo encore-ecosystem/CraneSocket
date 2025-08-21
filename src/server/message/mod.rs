@@ -1,7 +1,7 @@
 mod client;
-mod server;
 mod common;
+mod server;
 
 pub use client::ClientMessage;
+pub use common::{MessageError, Tags};
 pub use server::ServerMessage;
-pub use common::Tags;

@@ -9,18 +9,19 @@ pub enum Tags {
     JoinedSuccessfully = 2,
     ClientJoined = 3,
     ClientLeft = 4,
+    ServerClosed = 5,
     // ClientMessage variants
-    CreateRoom = 5,
-    JoinRoom = 6,
-    LeaveRoom = 7,
+    CreateRoom = 6,
+    JoinRoom = 7,
+    LeaveRoom = 8,
     // Shared variants (used by both)
-    Error = 8,
-    Text = 9,
-    Binary = 10,
-    Ping = 11,
-    Pong = 12,
-    Close = 13,
-    Frame = 14,
+    Error = 9,
+    Text = 10,
+    Binary = 11,
+    Ping = 12,
+    Pong = 13,
+    Close = 14,
+    Frame = 15,
 }
 
 #[allow(dead_code)]

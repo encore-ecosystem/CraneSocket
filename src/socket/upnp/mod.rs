@@ -7,7 +7,7 @@ use crate::socket::upnp::{
 
 mod connections;
 mod error;
-mod listeners;
+pub mod listeners;
 mod ports;
 
 pub use connections::{TcpConnection, UdpConnection, WebSocketConnection};
@@ -60,6 +60,6 @@ impl Drop for UPnPManager {
         log::debug!("Closing UPnP port {}...", self.port);
         self.prolongation_task.abort();
         close_port(self.port, self.protocol).unwrap();
-        log::debug!("Successfully closed port {}", self.port);
+        log::debug!("Successfully closed UPnP port {}", self.port);
     }
 }

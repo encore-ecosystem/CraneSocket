@@ -39,9 +39,7 @@ impl WebSocketListener {
     pub async fn get_external_addr(&self) -> Result<Ipv4Addr, ListenerError> {
         match external_ip::get_ipv4().await {
             Some(addr) => Ok(addr),
-            None => Err(ListenerError::Socket(
-                "Failed to get external address".into(),
-            )),
+            None => Err(ListenerError::Socket),
         }
     }
 }
