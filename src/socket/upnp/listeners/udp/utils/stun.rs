@@ -4,6 +4,7 @@ use tokio::net::UdpSocket;
 use tokio::net::lookup_host;
 
 use crate::socket::StunError;
+use crate::socket::common::STUN_HOSTS;
 
 #[allow(dead_code)]
 pub async fn init_with_stun(socket: &UdpSocket) -> Result<SocketAddr, StunError> {
@@ -11,8 +12,6 @@ pub async fn init_with_stun(socket: &UdpSocket) -> Result<SocketAddr, StunError>
 
     Ok(external_addr)
 }
-
-const STUN_HOSTS: [&str; 1] = ["stun.l.google.com:19302"];
 
 pub async fn get_external_addr(
     socket: &UdpSocket,

@@ -2,7 +2,7 @@ use easy_upnp::{Ipv4Cidr, UpnpConfig, add_ports, delete_ports};
 
 use easy_upnp::PortMappingProtocol as UPnPPortMappingProtocol;
 
-use crate::socket::upnp::listeners::ConnectionProtocol;
+use crate::socket::utils::ConnectionProtocol;
 
 pub fn get_port_config(port: u16, duration: u32, protocol: ConnectionProtocol) -> UpnpConfig {
     let protocol = match protocol {

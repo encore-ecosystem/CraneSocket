@@ -6,6 +6,7 @@ use rand::distr::SampleString;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Bytes;
 
 use crate::server::Room;
 use crate::server::constant::MAX_NUM_CLIENTS_IN_ROOM;
@@ -20,12 +21,12 @@ pub async fn handle_create_room(
     client2room: &mut HashMap<SocketAddr, String>,
 ) -> Result<(), ProxyServerError> {
     if rooms.len() > MAX_NUM_ROOMS {
-        send_error(&tx, &addr, "No available rooms left").await?;
+        send_error(&addr, &tx, "No available rooms left").await?;
         return Ok(());
     };
 
     if let Some(room_id) = client2room.get(&addr) {
-        send_error(&tx, &addr, format!("Peer is already in a room {}", room_id)).await?;
+        send_error(&addr, &tx, format!("Peer is already in a room {}", room_id)).await?;
         return Ok(());
     }
 
@@ -57,7 +58,7 @@ pub async fn handle_join_room(
     client2room: &mut HashMap<SocketAddr, String>,
 ) -> Result<(), ProxyServerError> {
     if client2room.contains_key(&addr) {
-        send_error(tx, &addr, "Client is already in a room").await?;
+        send_error(&addr, tx, "Client is already in a room").await?;
         return Ok(());
     }
 
@@ -65,8 +66,8 @@ pub async fn handle_join_room(
         Some(room) => room,
         None => {
             send_error(
-                tx,
                 &addr,
+                tx,
                 format!("No room with room_id={} exists", room_id),
             )
             .await?;
@@ -75,7 +76,7 @@ pub async fn handle_join_room(
     };
 
     if room.len() > MAX_NUM_CLIENTS_IN_ROOM {
-        send_error(tx, &addr, "The room is full").await?;
+        send_error(&addr, tx, "The room is full").await?;
         return Ok(());
     };
 
@@ -113,7 +114,7 @@ pub async fn handle_leave_room(
     let room_id = match client2room.remove(&addr) {
         Some(room_id) => room_id,
         None => {
-            send_error(tx, &addr, "Peer is not in a room").await?;
+            send_error(&addr, tx, "Peer is not in a room").await?;
             return Ok(());
         }
     };
@@ -122,8 +123,8 @@ pub async fn handle_leave_room(
         Some(room) => room,
         None => {
             send_error(
-                tx,
                 &addr,
+                tx,
                 format!("No room with room_id={} exists", room_id),
             )
             .await?;
@@ -133,8 +134,8 @@ pub async fn handle_leave_room(
 
     if room.remove(&addr).is_none() {
         send_error(
-            tx,
             &addr,
+            tx,
             format!("Peer {} not found in room {}", addr, room_id),
         )
         .await?;
@@ -167,7 +168,7 @@ pub async fn handle_binary_data(
     let room_id = match client2room.get(&addr) {
         Some(room) => room,
         None => {
-            send_error(tx, &addr, format!("No room found for peer {}", addr)).await?;
+            send_error(&addr, tx, format!("No room found for peer {}", addr)).await?;
             return Ok(());
         }
     };
@@ -176,8 +177,8 @@ pub async fn handle_binary_data(
         Some(room) => room,
         None => {
             send_error(
-                tx,
                 &addr,
+                tx,
                 format!("No room with room_id={} exists", room_id),
             )
             .await?;
@@ -213,7 +214,7 @@ pub async fn handle_text_data(
     let room_id = match client2room.get(&addr) {
         Some(room) => room,
         None => {
-            send_error(tx, &addr, format!("No room found for peer {}", addr)).await?;
+            send_error(&addr, tx, format!("No room found for peer {}", addr)).await?;
             return Ok(());
         }
     };
@@ -222,8 +223,8 @@ pub async fn handle_text_data(
         Some(room) => room,
         None => {
             send_error(
-                tx,
                 &addr,
+                tx,
                 format!("No room with room_id={} exists", room_id),
             )
             .await?;
@@ -251,9 +252,21 @@ pub async fn handle_text_data(
     Ok(())
 }
 
-pub async fn send_error(
-    tx: &mpsc::Sender<(ServerMessage, SocketAddr)>,
+pub async fn handle_ping_msg(
     addr: &SocketAddr,
+    tx: &mpsc::Sender<(ServerMessage, SocketAddr)>,
+    frame: Bytes,
+) -> Result<(), ProxyServerError> {
+    let msg = ServerMessage::Pong(frame);
+    tx.send((msg, *addr))
+        .await
+        .map_err(|e| ProxyServerError::Send(e.to_string()))?;
+    Ok(())
+}
+
+pub async fn send_error(
+    addr: &SocketAddr,
+    tx: &mpsc::Sender<(ServerMessage, SocketAddr)>,
     error_msg: impl Into<String>,
 ) -> Result<(), ProxyServerError> {
     let msg = ServerMessage::Error(error_msg.into());
@@ -568,7 +581,7 @@ mod tests {
         let addr = SocketAddr::from_str("1.2.3.4:1234").unwrap();
         let error_msg = "Test".to_string();
 
-        let result = send_error(&tx, &addr, error_msg.clone()).await;
+        let result = send_error(&addr, &tx, error_msg.clone()).await;
         assert!(result.is_ok());
 
         let (msg, recv_addr) = rx.recv().await.unwrap();

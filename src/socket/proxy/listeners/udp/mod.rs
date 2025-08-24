@@ -3,11 +3,12 @@ use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
 use crate::{
-    server::{constant::MAX_MESSAGE_SIZE, message::Tags},
-    socket::ListenerError,
+    server::constant::MAX_MESSAGE_SIZE,
+    socket::{
+        ListenerError,
+        proxy::common::{is_tag_only_message, validate_tag_with_payload},
+    },
 };
-
-mod utils;
 
 #[derive(Debug)]
 pub struct UdpListener {
@@ -46,16 +47,7 @@ impl UdpListener {
         }
 
         let tag = data[0];
-        if matches!(
-            tag,
-            x if x == Tags::CreateRoom as u8
-                || x == Tags::LeaveRoom as u8
-                || x == Tags::JoinedSuccessfully as u8
-                || x == Tags::ClientJoined as u8
-                || x == Tags::ClientLeft as u8
-                || x == Tags::Close as u8
-                || x == Tags::Frame as u8
-        ) {
+        if is_tag_only_message(tag) {
             if len != 1 {
                 error!("Expected exactly 1 byte for tag-only message, got {}", len);
                 return Err(ListenerError::InvalidDatagramFrom(addr));
@@ -63,18 +55,8 @@ impl UdpListener {
             return Ok((vec![tag], addr));
         }
 
-        if !matches!(
-            tag,
-            x if x == Tags::Text as u8
-                || x == Tags::Binary as u8
-                || x == Tags::Ping as u8
-                || x == Tags::Pong as u8
-                || x == Tags::RoomCreated as u8
-                || x == Tags::JoinRoom as u8
-                || x == Tags::Error as u8
-        ) {
-            error!("Received a message with an unexpected tag");
-            return Err(ListenerError::InvalidDatagramFrom(addr));
+        if let Err(msg) = validate_tag_with_payload(tag) {
+            return Err(ListenerError::UnexpectedMessage(msg));
         }
 
         if len < 9 {

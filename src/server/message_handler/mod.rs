@@ -39,7 +39,7 @@ pub async fn handle_message<T: Transport>(
                     Ok((msg, addr)) => {
                         if let Err(e) = process_message(addr, msg, tx.clone(), &rooms, &client2room).await {
                             error!("Error processing message for peer {}: {:?}", addr, e);
-                            send_error(&tx, &addr, "Internal server error".to_string()).await?;
+                            send_error(&addr, &tx, "Internal server error".to_string()).await?;
                         }
                     },
                     Err(e) => {
@@ -109,11 +109,16 @@ async fn process_message(
         ClientMessage::Close(_) => {
             handle_leave_room(addr, &tx, &mut rooms_lock, &mut client2room_lock).await?
         }
+        ClientMessage::Ping(frame) => handle_ping_msg(&addr, &tx, frame).await?,
         ClientMessage::Error(e) => {
             debug!("Processing client error: {}", e);
-            send_error(&tx, &addr, e).await?
+            send_error(&addr, &tx, e).await?
         }
-        _ => {}
+        msg => {
+            let error_msg = format!("Received unexpected message: {:?}", msg);
+            debug!("{}", error_msg);
+            send_error(&addr, &tx, error_msg).await?
+        }
     }
     Ok(())
 }

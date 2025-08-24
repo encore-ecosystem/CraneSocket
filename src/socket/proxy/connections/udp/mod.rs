@@ -3,8 +3,11 @@ use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
 use crate::{
-    server::{constant::MAX_MESSAGE_SIZE, message::Tags},
-    socket::ConnectionError,
+    server::constant::MAX_MESSAGE_SIZE,
+    socket::{
+        ConnectionError,
+        proxy::common::{is_tag_only_message, validate_tag_with_payload},
+    },
 };
 
 mod connection_logic;
@@ -113,17 +116,7 @@ impl UdpConnection {
         }
 
         let tag = data[0];
-        if matches!(
-            tag,
-            x if x == Tags::CreateRoom as u8
-                || x == Tags::LeaveRoom as u8
-                || x == Tags::JoinedSuccessfully as u8
-                || x == Tags::ClientJoined as u8
-                || x == Tags::ClientLeft as u8
-                || x == Tags::ServerClosed as u8
-                || x == Tags::Close as u8
-                || x == Tags::Frame as u8
-        ) {
+        if is_tag_only_message(tag) {
             if len != 1 {
                 return Err(ConnectionError::UnexpectedMessage(format!(
                     "Expected exactly 1 byte for tag-only message, got {}",
@@ -133,19 +126,8 @@ impl UdpConnection {
             return Ok(vec![tag]);
         }
 
-        if !matches!(
-            tag,
-            x if x == Tags::Text as u8
-                || x == Tags::Binary as u8
-                || x == Tags::Ping as u8
-                || x == Tags::Pong as u8
-                || x == Tags::RoomCreated as u8
-                || x == Tags::JoinRoom as u8
-                || x == Tags::Error as u8
-        ) {
-            return Err(ConnectionError::UnexpectedMessage(
-                "Received a message with an unexpected tag".into(),
-            ));
+        if let Err(msg) = validate_tag_with_payload(tag) {
+            return Err(ConnectionError::UnexpectedMessage(msg));
         }
 
         if len < 9 {
@@ -174,5 +156,9 @@ impl UdpConnection {
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ConnectionError> {
         Ok(self.socket.local_addr()?)
+    }
+
+    pub fn as_raw_socket(&self) -> &UdpSocket {
+        &self.socket
     }
 }

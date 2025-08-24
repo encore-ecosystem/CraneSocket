@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use log::{debug, error};
 use tokio::{fs::File, io::AsyncReadExt, sync::oneshot};
 use upnpsocket::{
@@ -8,11 +7,11 @@ use upnpsocket::{
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    dotenv::dotenv().ok();
     env_logger::init();
 
     let socket =
-        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "j6W5KhYF".into())
+        WebSocketConnection::join_room(&"127.0.0.1:8000".parse().unwrap(), "JffBN4u9".into())
             .await
             .unwrap();
 
@@ -43,7 +42,7 @@ async fn main() {
         .await
         .unwrap();
 
-    let mut buffer = vec![0u8; 4096];
+    let mut buffer = vec![0u8; 1024 * 256];
     let mut total_sent = 0;
     loop {
         let bytes_read = file.read(&mut buffer).await.unwrap();

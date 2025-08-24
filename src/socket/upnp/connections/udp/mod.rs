@@ -2,10 +2,7 @@ use log::{debug, error};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-use crate::socket::{
-    ConnectionError,
-    upnp::{UPnPManager, listeners::ConnectionProtocol},
-};
+use crate::socket::{ConnectionError, upnp::UPnPManager, utils::ConnectionProtocol};
 
 #[allow(dead_code)]
 pub struct UdpConnection {

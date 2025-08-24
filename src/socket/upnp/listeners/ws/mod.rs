@@ -4,8 +4,8 @@ use tokio_tungstenite::{WebSocketStream, accept_async};
 
 use crate::socket::ListenerError;
 use crate::socket::upnp::UPnPManager;
-use crate::socket::upnp::listeners::ConnectionProtocol;
 use crate::socket::upnp::listeners::upnp::init_upnp;
+use crate::socket::utils::ConnectionProtocol;
 
 #[allow(dead_code)]
 #[derive(Debug)]

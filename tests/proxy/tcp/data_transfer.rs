@@ -334,7 +334,6 @@ async fn test_large_binary_file_transfer_success() {
             timed(stream.send_all(&ClientMessage::binary(chunk_bytes).as_bytes()))
                 .await
                 .expect("Failed to send message");
-            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
         }
         timed(stream.flush()).await.unwrap();
     });
@@ -348,7 +347,6 @@ async fn test_large_binary_file_transfer_success() {
             timed(stream.send_all(&ClientMessage::binary(chunk_bytes).as_bytes()))
                 .await
                 .expect("Failed to send message");
-            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
         }
         timed(stream.flush()).await.unwrap();
 

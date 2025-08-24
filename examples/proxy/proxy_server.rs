@@ -1,10 +1,9 @@
-use dotenv::dotenv;
 use tokio::{signal, sync::oneshot};
 use upnpsocket::server::WebSocketProxyServer;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 12)]
 async fn main() {
-    dotenv().ok();
+    dotenv::dotenv().ok();
     env_logger::init();
 
     let addr = "127.0.0.1:8000".parse().unwrap();

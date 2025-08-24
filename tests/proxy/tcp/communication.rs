@@ -1,10 +1,16 @@
 use std::net::SocketAddr;
 
 use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::tungstenite::Bytes;
 use upnpsocket::{
-    server::{TcpProxyServer, message::ServerMessage},
+    server::{
+        TcpProxyServer,
+        message::{ClientMessage, ServerMessage},
+    },
     socket::proxy::TcpConnection,
 };
+
+use tokio::net::TcpStream;
 
 use crate::{MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
 
@@ -192,4 +198,77 @@ async fn test_early_server_shutdown() {
 
     sender_handle.abort();
     receiver_handle.abort();
+}
+
+#[tokio::test]
+async fn test_ping() {
+    let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
+
+    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+        .await
+        .unwrap();
+    let server_addr = server.get_local_addr().unwrap();
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    tokio::spawn(async move {
+        server.serve(shutdown_rx).await.unwrap();
+    });
+    tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
+
+    let frame = Bytes::from("123");
+
+    let stream = TcpStream::connect(server_addr).await.unwrap();
+    let mut stream = TcpConnection::new(stream);
+
+    stream
+        .send(&ClientMessage::Ping(frame.clone()).as_bytes())
+        .await
+        .unwrap();
+
+    let data = timed(stream.next()).await.unwrap();
+    let received_msg = ServerMessage::try_from(&data[..]).unwrap();
+
+    assert_eq!(received_msg, ServerMessage::Pong(frame));
+
+    shutdown_tx.send(()).unwrap();
+    stream.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_send_unexpected_message() {
+    let bind_addr = "127.0.0.1:0".parse::<SocketAddr>().unwrap();
+
+    let server = timed(TcpProxyServer::bind(&bind_addr, false))
+        .await
+        .unwrap();
+    let server_addr = server.get_local_addr().unwrap();
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    tokio::spawn(async move {
+        server.serve(shutdown_rx).await.unwrap();
+    });
+    tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
+
+    let frame = Bytes::from("123");
+
+    let stream = TcpStream::connect(server_addr).await.unwrap();
+    let mut stream = TcpConnection::new(stream);
+
+    stream
+        .send(&ClientMessage::Pong(frame.clone()).as_bytes())
+        .await
+        .unwrap();
+
+    let data = timed(stream.next()).await.unwrap();
+    let received_msg = ServerMessage::try_from(&data[..]).unwrap();
+
+    match received_msg {
+        ServerMessage::Error(msg) => {
+            assert!(msg.contains("Received unexpected message: Pong"));
+        }
+        _ => panic!("Expected ServerMessage::Error, got {:?}", received_msg),
+    }
+
+    shutdown_tx.send(()).unwrap();
+    stream.close().await.unwrap();
 }

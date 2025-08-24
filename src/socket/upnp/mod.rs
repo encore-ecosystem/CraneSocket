@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use crate::socket::upnp::{
-    listeners::ConnectionProtocol,
-    ports::{close_port, open_port},
+use crate::socket::{
+    upnp::ports::{close_port, open_port},
+    utils::ConnectionProtocol,
 };
 
 mod connections;

@@ -1,3 +1,4 @@
+mod autoselector;
 mod proxy;
 mod utils;
 

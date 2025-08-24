@@ -10,8 +10,11 @@ use tokio::{
 };
 
 use crate::{
-    server::{constant::READ_TIMEOUT_MS, message::Tags},
-    socket::ConnectionError,
+    server::constant::READ_TIMEOUT_MS,
+    socket::{
+        ConnectionError,
+        proxy::common::{is_tag_only_message, validate_tag_with_payload},
+    },
 };
 
 mod connection_logic;
@@ -105,33 +108,12 @@ impl TcpConnection {
         let mut tag = [0u8; 1];
         self.stream.read_exact(&mut tag).await?;
 
-        if matches!(
-            tag[0],
-            x if x == Tags::CreateRoom as u8
-                || x == Tags::LeaveRoom as u8
-                || x == Tags::JoinedSuccessfully as u8
-                || x == Tags::ServerClosed as u8
-                || x == Tags::ClientJoined as u8
-                || x == Tags::ClientLeft as u8
-                || x == Tags::Close as u8
-                || x == Tags::Frame as u8
-        ) {
+        if is_tag_only_message(tag[0]) {
             return Ok(tag.into());
         }
 
-        if !matches!(
-            tag[0],
-            x if x == Tags::Text as u8
-                || x == Tags::Binary as u8
-                || x == Tags::Ping as u8
-                || x == Tags::Pong as u8
-                || x == Tags::RoomCreated as u8
-                || x == Tags::JoinRoom as u8
-                || x == Tags::Error as u8
-        ) {
-            return Err(ConnectionError::UnexpectedMessage(
-                "Received a message with an unexpected tag".into(),
-            ));
+        if let Err(msg) = validate_tag_with_payload(tag[0]) {
+            return Err(ConnectionError::UnexpectedMessage(msg));
         }
 
         let mut len_buf = [0u8; 8];
@@ -215,32 +197,12 @@ impl ReadHalf {
         let mut tag = [0u8; 1];
         self.stream.read_exact(&mut tag).await?;
 
-        if matches!(
-            tag[0],
-            x if x == Tags::CreateRoom as u8
-                || x == Tags::LeaveRoom as u8
-                || x == Tags::JoinedSuccessfully as u8
-                || x == Tags::ClientJoined as u8
-                || x == Tags::ClientLeft as u8
-                || x == Tags::Close as u8
-                || x == Tags::Frame as u8
-        ) {
+        if is_tag_only_message(tag[0]) {
             return Ok(tag.into());
         }
 
-        if !matches!(
-            tag[0],
-            x if x == Tags::Text as u8
-                || x == Tags::Binary as u8
-                || x == Tags::Ping as u8
-                || x == Tags::Pong as u8
-                || x == Tags::RoomCreated as u8
-                || x == Tags::JoinRoom as u8
-                || x == Tags::Error as u8
-        ) {
-            return Err(ConnectionError::UnexpectedMessage(
-                "Received a message with an unexpected tag".into(),
-            ));
+        if let Err(msg) = validate_tag_with_payload(tag[0]) {
+            return Err(ConnectionError::UnexpectedMessage(msg));
         }
 
         let mut len_buf = [0u8; 8];

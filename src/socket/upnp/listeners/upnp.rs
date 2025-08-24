@@ -1,7 +1,4 @@
-use crate::socket::{
-    ListenerError,
-    upnp::{UPnPManager, listeners::ConnectionProtocol},
-};
+use crate::socket::{ListenerError, upnp::UPnPManager, utils::ConnectionProtocol};
 
 pub async fn init_upnp(
     port: u16,

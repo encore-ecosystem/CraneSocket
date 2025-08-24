@@ -16,8 +16,8 @@ use crate::socket::proxy::TcpListener as ProxyTcpListener;
 use crate::socket::proxy::UdpListener as ProxyUdpListener;
 use crate::socket::proxy::WebSocketListener as ProxyWebSocketListener;
 use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
-use crate::socket::upnp::listeners::ConnectionProtocol;
 use crate::socket::upnp::{TcpListener as UPnPTcpListener, UPnPManager};
+use crate::socket::utils::ConnectionProtocol;
 
 pub mod common;
 pub mod constant;

@@ -411,6 +411,7 @@ async fn test_large_binary_file_transfer_success() {
                 break;
             }
         }
+
         for chunk in received_data.chunks(CHUNK_SIZE) {
             let chunk_bytes = Bytes::copy_from_slice(chunk);
             timed(socket.send(&ClientMessage::binary(chunk_bytes).as_bytes()))
@@ -432,6 +433,7 @@ async fn test_large_binary_file_transfer_success() {
                 .expect("Failed to send message");
             tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
         }
+
         let mut received_data = Vec::new();
         received_data.reserve_exact(FILE_SIZE);
         while received_data.len() < FILE_SIZE {

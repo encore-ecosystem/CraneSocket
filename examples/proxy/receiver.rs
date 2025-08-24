@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use log::debug;
 use tokio::{fs::File, io::AsyncWriteExt};
 
@@ -6,7 +5,7 @@ use upnpsocket::{server::message::ServerMessage, socket::proxy::WebSocketConnect
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    dotenv::dotenv().ok();
     env_logger::init();
 
     let server_addr = "127.0.0.1:8000".parse().unwrap();

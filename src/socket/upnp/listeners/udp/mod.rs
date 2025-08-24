@@ -3,10 +3,8 @@ use tokio::net::UdpSocket;
 
 use crate::socket::{
     ListenerError,
-    upnp::{
-        UPnPManager,
-        listeners::{ConnectionProtocol, upnp::init_upnp},
-    },
+    upnp::{UPnPManager, listeners::upnp::init_upnp},
+    utils::ConnectionProtocol,
 };
 
 pub mod utils;

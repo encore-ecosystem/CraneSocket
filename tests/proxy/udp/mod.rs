@@ -1,2 +1,2 @@
-mod room;
+mod communication;
 mod data_transfer;
