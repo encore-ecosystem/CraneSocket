@@ -5,102 +5,18 @@ use crate::{
     socket::{
         common::STUN_HOSTS,
         proxy::{TcpConnection, UdpConnection, WebSocketConnection},
-        utils::ConnectionProtocol,
+        utils::{ConnectionProtocol, autoselector::error::AutoSelectorError},
     },
 };
 
 use futures::future::join_all;
 use igd::{SearchOptions, search_gateway};
-use log::info;
 use stunclient::StunClient;
-use thiserror::Error;
 use tokio::{
     net::{TcpStream, UdpSocket, lookup_host},
     time::{Duration, Instant, timeout},
 };
 use tokio_tungstenite::tungstenite::Bytes;
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct AutoSelectorConfig<'a> {
-    protocol: ConnectionProtocol,
-    upnp: bool,
-    stun: Vec<&'a str>,
-    proxy: Vec<SocketAddr>,
-}
-
-impl<'a> AutoSelectorConfig<'a> {
-    pub fn new(protocol: ConnectionProtocol) -> Self {
-        Self {
-            protocol,
-            upnp: true,
-            stun: Vec::new(),
-            proxy: Vec::new(),
-        }
-    }
-
-    pub fn upnp(mut self, enabled: bool) -> Self {
-        self.upnp = enabled;
-        self
-    }
-
-    pub fn stun_servers(mut self, servers: Vec<&'a str>) -> Self {
-        self.stun = servers;
-        self
-    }
-
-    pub fn add_stun_server(mut self, server: &'a str) -> Self {
-        self.stun.push(server);
-        self
-    }
-
-    pub fn proxy_servers(mut self, servers: Vec<SocketAddr>) -> Self {
-        self.proxy = servers;
-        self
-    }
-
-    pub fn add_proxy_server(mut self, server: SocketAddr) -> Self {
-        self.proxy.push(server);
-        self
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum ConnectionMethod {
-    UPnP,
-    Stun(String),
-    Proxy(SocketAddr),
-}
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum AutoSelectorError {
-    #[error("UPnPNotAvailable error")]
-    UPnPNotAvailable,
-    #[error("UPnPPortMapFailed error")]
-    UPnPPortMapFailed,
-    #[error("StunConnectionFailed error")]
-    StunConnectionFailed,
-    #[error("NoAvailableProxy error")]
-    NoAvailableProxy,
-    #[error("ServerUnreachable error")]
-    ServerUnreachable,
-    #[error("NoAvailableMethod error")]
-    NoAvailableMethod,
-    #[error("Bind error")]
-    Bind,
-    #[error("Connect error")]
-    Connect,
-    #[error("Send error")]
-    Send,
-    #[error("Receive error")]
-    Receive,
-    #[error("Timeout")]
-    Timeout,
-    #[error("InvalidResponse {0}")]
-    InvalidResponse(String),
-    #[error("InvalidHost {0}")]
-    InvalidHost(String),
-}
 
 pub fn is_upnp_available() -> bool {
     match search_gateway(SearchOptions::default()) {
@@ -142,7 +58,7 @@ async fn check_tcp_proxy(server_addr: SocketAddr) -> Result<(), AutoSelectorErro
     let stream = TcpStream::connect(server_addr)
         .await
         .map_err(|_| AutoSelectorError::ServerUnreachable)?;
-    let mut conn = TcpConnection::new(stream);
+    let mut conn = TcpConnection::new(stream, None);
 
     conn.send(&ClientMessage::Ping(Bytes::new()).as_bytes())
         .await
@@ -240,68 +156,4 @@ pub async fn is_stun_available(stun_servers: &[&str]) -> Result<String, AutoSele
         }
     }
     Err(AutoSelectorError::Timeout)
-}
-
-pub async fn auto_select_conn_method<'a>(
-    cfg: &AutoSelectorConfig<'a>,
-) -> Result<ConnectionMethod, AutoSelectorError> {
-    match cfg.protocol {
-        ConnectionProtocol::Tcp => {
-            if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
-            }
-
-            if !cfg.proxy.is_empty() {
-                match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
-                    Err(e) => {
-                        info!("Could not connect to proxy: {}", e);
-                    }
-                }
-            }
-
-            Err(AutoSelectorError::NoAvailableMethod)
-        }
-        ConnectionProtocol::Udp => {
-            if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
-            }
-
-            if !cfg.stun.is_empty() {
-                match is_stun_available(&cfg.stun).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Stun(addr)),
-                    Err(e) => {
-                        info!("Could not connect to stun: {}", e);
-                    }
-                }
-            }
-
-            if !cfg.proxy.is_empty() {
-                match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
-                    Err(e) => {
-                        info!("Could not connect to proxy: {}", e);
-                    }
-                }
-            }
-
-            Err(AutoSelectorError::NoAvailableMethod)
-        }
-        ConnectionProtocol::WebSocket => {
-            if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
-            }
-
-            if !cfg.proxy.is_empty() {
-                match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
-                    Err(e) => {
-                        info!("Could not connect to proxy: {}", e);
-                    }
-                }
-            }
-
-            Err(AutoSelectorError::NoAvailableMethod)
-        }
-    }
 }

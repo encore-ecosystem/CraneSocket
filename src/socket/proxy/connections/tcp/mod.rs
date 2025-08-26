@@ -22,11 +22,12 @@ use connection_logic::*;
 
 pub struct TcpConnection {
     stream: TcpStream,
+    room_id: Option<String>,
 }
 
 impl TcpConnection {
-    pub fn new(stream: TcpStream) -> Self {
-        Self { stream }
+    pub fn new(stream: TcpStream, room_id: Option<String>) -> Self {
+        Self { stream, room_id }
     }
 
     pub async fn create_room(addr: &SocketAddr) -> Result<(Self, String), ConnectionError> {
@@ -36,17 +37,17 @@ impl TcpConnection {
         let room_id = register(&mut server_conn).await?;
         debug!("Created a room on the proxy server. room_id={}", room_id);
 
-        Ok((Self::new(server_conn), room_id))
+        Ok((Self::new(server_conn, Some(room_id.clone())), room_id))
     }
 
     pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
         let mut server_conn = TcpStream::connect(addr).await?;
         debug!("Connected to the proxy server");
 
-        join_room(&mut server_conn, room_id).await?;
+        join_room(&mut server_conn, room_id.clone()).await?;
         debug!("Joined the room on the proxy server");
 
-        let conn = Self::new(server_conn);
+        let conn = Self::new(server_conn, Some(room_id));
         Ok(conn)
     }
 
@@ -141,6 +142,11 @@ impl TcpConnection {
 
     pub async fn close(&mut self) -> Result<(), ConnectionError> {
         self.stream.shutdown().await.map_err(ConnectionError::Io)
+    }
+
+    pub fn get_token(&self) -> Result<String, ConnectionError> {
+        // method(proxy) + server_addr + room_id
+        std::unimplemented!()
     }
 }
 

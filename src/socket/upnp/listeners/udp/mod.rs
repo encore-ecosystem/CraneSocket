@@ -7,8 +7,6 @@ use crate::socket::{
     utils::ConnectionProtocol,
 };
 
-pub mod utils;
-
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct UdpListener {

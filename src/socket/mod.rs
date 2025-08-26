@@ -4,5 +4,5 @@ pub mod proxy;
 pub mod upnp;
 pub mod utils;
 
-pub use common::get_default_gateway;
+pub use common::*;
 pub use error::*;
