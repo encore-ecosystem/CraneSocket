@@ -101,7 +101,7 @@ async fn test_text_data_transfer_alone_in_room() {
     let res = timed(ws_stream.send(ClientMessage::text(test_message.clone()))).await;
     assert!(res.is_ok());
 
-    timed(ws_stream.close(None)).await.unwrap();
+    timed(ws_stream.close()).await.unwrap();
     shutdown_tx.send(()).unwrap();
 }
 

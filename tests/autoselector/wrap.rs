@@ -103,7 +103,7 @@ async fn test_auto_websocket_proxy() {
     assert_eq!(received_msg, ServerMessage::Pong(frame));
 
     shutdown_tx.send(()).unwrap();
-    stream.close(None).await.unwrap();
+    stream.close().await.unwrap();
 }
 
 #[tokio::test]

@@ -15,8 +15,7 @@ use log::debug;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async,
-    tungstenite::{Message as TungsteniteMessage, protocol::CloseFrame},
+    MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as TungsteniteMessage,
 };
 
 mod connection_logic;
@@ -96,8 +95,8 @@ impl WebSocketConnection {
         }
     }
 
-    pub async fn close(&mut self, frame: Option<CloseFrame>) -> Result<(), ConnectionError> {
-        Ok(self.stream.close(frame).await?)
+    pub async fn close(&mut self) -> Result<(), ConnectionError> {
+        Ok(self.stream.close(None).await?)
     }
 
     pub fn split(self) -> (WebSocketSender, WebSocketReceiver) {

@@ -42,19 +42,19 @@ async fn main() {
             }
             Ok(ServerMessage::Close(_) | ServerMessage::ClientLeft) => {
                 println!("Connection closed");
-                ws_stream.close(None).await.unwrap();
+                ws_stream.close().await.unwrap();
                 file.flush().await.unwrap();
                 return;
             }
             Ok(msg) => {
                 eprintln!("Received unexpected message: {:?}", msg);
-                ws_stream.close(None).await.unwrap();
+                ws_stream.close().await.unwrap();
                 file.flush().await.unwrap();
                 return;
             }
             Err(e) => {
                 println!("{}", e);
-                ws_stream.close(None).await.unwrap();
+                ws_stream.close().await.unwrap();
                 file.flush().await.unwrap();
                 return;
             }
@@ -67,5 +67,5 @@ async fn main() {
         file_name, total_received
     );
 
-    ws_stream.close(None).await.unwrap();
+    ws_stream.close().await.unwrap();
 }

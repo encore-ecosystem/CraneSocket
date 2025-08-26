@@ -43,13 +43,13 @@ async fn test_create_room() {
     assert_eq!(rooms.read().await.len(), 2);
     assert_eq!(client2room.read().await.len(), 2);
 
-    timed(first_conn.close(None)).await.unwrap();
+    timed(first_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 1);
     assert_eq!(client2room.read().await.len(), 1);
 
-    timed(second_conn.close(None)).await.unwrap();
+    timed(second_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 0);
@@ -93,13 +93,13 @@ async fn test_create_and_join_room() {
 
     assert_eq!(msg, ServerMessage::ClientJoined);
 
-    timed(join_room_conn.close(None)).await.unwrap();
+    timed(join_room_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 1);
     assert_eq!(client2room.read().await.len(), 1);
 
-    timed(create_room_conn.close(None)).await.unwrap();
+    timed(create_room_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 0);
@@ -228,7 +228,7 @@ async fn test_ping() {
     assert_eq!(received_msg, ServerMessage::Pong(frame));
 
     shutdown_tx.send(()).unwrap();
-    stream.close(None).await.unwrap();
+    stream.close().await.unwrap();
 }
 
 #[tokio::test]
@@ -268,5 +268,5 @@ async fn test_send_unexpected_message() {
     }
 
     shutdown_tx.send(()).unwrap();
-    stream.close(None).await.unwrap();
+    stream.close().await.unwrap();
 }

@@ -46,13 +46,13 @@ async fn test_create_and_join_room_using_token() {
 
     assert_eq!(msg, ServerMessage::ClientJoined);
 
-    timed(join_room_conn.close(None)).await.unwrap();
+    timed(join_room_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 1);
     assert_eq!(client2room.read().await.len(), 1);
 
-    timed(create_room_conn.close(None)).await.unwrap();
+    timed(create_room_conn.close()).await.unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(TEST_SLEEP_TIME_MS)).await;
 
     assert_eq!(rooms.read().await.len(), 0);
