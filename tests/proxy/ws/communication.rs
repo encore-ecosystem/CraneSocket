@@ -216,7 +216,7 @@ async fn test_ping() {
     let (stream, _) = connect_async(format!("ws://{}", server_addr))
         .await
         .unwrap();
-    let mut stream = WebSocketConnection::new(stream);
+    let mut stream = WebSocketConnection::new(stream, None, None);
 
     stream
         .send(ClientMessage::Ping(frame.clone()))
@@ -251,7 +251,7 @@ async fn test_send_unexpected_message() {
     let (stream, _) = connect_async(format!("ws://{}", server_addr))
         .await
         .unwrap();
-    let mut stream = WebSocketConnection::new(stream);
+    let mut stream = WebSocketConnection::new(stream, None, None);
 
     stream
         .send(ClientMessage::Pong(frame.clone()))

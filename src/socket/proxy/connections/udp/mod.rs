@@ -6,7 +6,9 @@ use crate::{
     server::constant::MAX_MESSAGE_SIZE,
     socket::{
         ConnectionError,
+        config::{ConnectionConfig, ConnectionMethod},
         proxy::common::{is_tag_only_message, validate_tag_with_payload},
+        utils::ConnectionProtocol,
     },
 };
 
@@ -15,6 +17,8 @@ use connection_logic::*;
 
 pub struct UdpConnection {
     socket: UdpSocket,
+    server_addr: Option<SocketAddr>,
+    room_id: Option<String>,
 }
 
 impl UdpConnection {
@@ -30,7 +34,22 @@ impl UdpConnection {
             }
         };
 
-        Ok(UdpConnection { socket })
+        Ok(Self {
+            socket,
+            server_addr: None,
+            room_id: None,
+        })
+    }
+
+    pub async fn from_token(&mut self, token: &str) -> Result<(), ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::Udp || cfg.method != ConnectionMethod::Proxy {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        let room_id = cfg.room_id.ok_or(ConnectionError::InvalidConfig)?;
+        self.join_room(&cfg.addr, room_id.clone()).await
     }
 
     pub async fn create_room(&mut self, addr: &SocketAddr) -> Result<String, ConnectionError> {
@@ -39,6 +58,9 @@ impl UdpConnection {
 
         let room_id = register(&mut self.socket).await?;
         debug!("Created a room on the proxy server. room_id={}", room_id);
+
+        self.server_addr = Some(*addr);
+        self.room_id = Some(room_id.clone());
 
         Ok(room_id)
     }
@@ -51,8 +73,11 @@ impl UdpConnection {
         self.socket.connect(addr).await?;
         debug!("Connected to the proxy server");
 
-        join_room(&mut self.socket, room_id).await?;
+        join_room(&mut self.socket, room_id.clone()).await?;
         debug!("Joined the room on the proxy server");
+
+        self.server_addr = Some(*addr);
+        self.room_id = Some(room_id);
         Ok(())
     }
 
@@ -156,6 +181,20 @@ impl UdpConnection {
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ConnectionError> {
         Ok(self.socket.local_addr()?)
+    }
+
+    pub fn get_token(&self) -> Result<String, ConnectionError> {
+        let server_addr = self.server_addr.ok_or(ConnectionError::NotConnected)?;
+        let room_id = self.room_id.clone().ok_or(ConnectionError::NotConnected)?;
+
+        let cfg = ConnectionConfig::new(
+            ConnectionMethod::Proxy,
+            ConnectionProtocol::Udp,
+            server_addr,
+            Some(room_id),
+        );
+
+        cfg.encode().map_err(ConnectionError::Serialization)
     }
 
     pub fn as_raw_socket(&self) -> &UdpSocket {

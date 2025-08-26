@@ -9,7 +9,7 @@ use upnpsocket::{
     },
     socket::utils::{
         AutoSelectorConfig, AutoTcpListener, AutoUdpListener, AutoWebsocketListener,
-        ConnectionMethod, ConnectionProtocol, auto_select_conn_method,
+        ListeningMethod, ConnectionProtocol, auto_select_conn_method,
     },
 };
 
@@ -33,7 +33,7 @@ async fn test_auto_tcp_proxy() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     let stream = AutoTcpListener::listen(&bind_addr, &cfg).await.unwrap();
 
@@ -78,7 +78,7 @@ async fn test_auto_websocket_proxy() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     let stream = AutoWebsocketListener::listen(&bind_addr, &cfg)
         .await
@@ -124,7 +124,7 @@ async fn test_auto_udp_proxy() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     let socket = AutoUdpListener::listen(&bind_addr, &cfg).await.unwrap();
 

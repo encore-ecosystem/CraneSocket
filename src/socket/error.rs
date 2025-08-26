@@ -24,6 +24,10 @@ pub enum ListenerError {
     UnexpectedMessage(String),
     #[error("Invalid Datagram error: {0}")]
     InvalidDatagramFrom(SocketAddr),
+    #[error("Serialization Error: {0}")]
+    Serialization(postcard::Error),
+    #[error("InvalidConfig")]
+    InvalidConfig,
 }
 
 #[derive(Error, Debug)]
@@ -46,4 +50,10 @@ pub enum ConnectionError {
     Timeout,
     #[error("UnexpectedClose")]
     UnexpectedClose,
+    #[error("NotConnected")]
+    NotConnected,
+    #[error("Serialization Error: {0}")]
+    Serialization(postcard::Error),
+    #[error("InvalidConfig")]
+    InvalidConfig,
 }

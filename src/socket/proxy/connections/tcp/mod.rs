@@ -13,7 +13,9 @@ use crate::{
     server::constant::READ_TIMEOUT_MS,
     socket::{
         ConnectionError,
+        config::{ConnectionConfig, ConnectionMethod},
         proxy::common::{is_tag_only_message, validate_tag_with_payload},
+        utils::ConnectionProtocol,
     },
 };
 
@@ -22,12 +24,32 @@ use connection_logic::*;
 
 pub struct TcpConnection {
     stream: TcpStream,
+    server_addr: Option<SocketAddr>,
     room_id: Option<String>,
 }
 
 impl TcpConnection {
-    pub fn new(stream: TcpStream, room_id: Option<String>) -> Self {
-        Self { stream, room_id }
+    pub fn new(
+        stream: TcpStream,
+        server_addr: Option<SocketAddr>,
+        room_id: Option<String>,
+    ) -> Self {
+        Self {
+            stream,
+            server_addr,
+            room_id,
+        }
+    }
+
+    pub async fn from_token(token: &str) -> Result<Self, ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::Tcp || cfg.method != ConnectionMethod::Proxy {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        let room_id = cfg.room_id.ok_or(ConnectionError::InvalidConfig)?;
+        Self::join_room(&cfg.addr, room_id).await
     }
 
     pub async fn create_room(addr: &SocketAddr) -> Result<(Self, String), ConnectionError> {
@@ -37,7 +59,10 @@ impl TcpConnection {
         let room_id = register(&mut server_conn).await?;
         debug!("Created a room on the proxy server. room_id={}", room_id);
 
-        Ok((Self::new(server_conn, Some(room_id.clone())), room_id))
+        Ok((
+            Self::new(server_conn, Some(*addr), Some(room_id.clone())),
+            room_id,
+        ))
     }
 
     pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
@@ -47,7 +72,7 @@ impl TcpConnection {
         join_room(&mut server_conn, room_id.clone()).await?;
         debug!("Joined the room on the proxy server");
 
-        let conn = Self::new(server_conn, Some(room_id));
+        let conn = Self::new(server_conn, Some(*addr), Some(room_id));
         Ok(conn)
     }
 
@@ -145,8 +170,17 @@ impl TcpConnection {
     }
 
     pub fn get_token(&self) -> Result<String, ConnectionError> {
-        // method(proxy) + server_addr + room_id
-        std::unimplemented!()
+        let server_addr = self.server_addr.ok_or(ConnectionError::NotConnected)?;
+        let room_id = self.room_id.clone().ok_or(ConnectionError::NotConnected)?;
+
+        let cfg = ConnectionConfig::new(
+            ConnectionMethod::Proxy,
+            ConnectionProtocol::Tcp,
+            server_addr,
+            Some(room_id),
+        );
+
+        cfg.encode().map_err(ConnectionError::Serialization)
     }
 }
 

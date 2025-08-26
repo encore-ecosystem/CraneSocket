@@ -12,7 +12,10 @@ async fn main() {
         .await
         .unwrap();
     info!("Server started");
-    info!("Server ext addr: {}", socket.get_external_addr());
+    info!(
+        "Server ext addr: {}",
+        socket.get_external_addr().await.unwrap()
+    );
 
     let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {

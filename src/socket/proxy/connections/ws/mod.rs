@@ -1,6 +1,10 @@
 use crate::{
     server::message::{ClientMessage, ServerMessage},
-    socket::ConnectionError,
+    socket::{
+        ConnectionError,
+        config::{ConnectionConfig, ConnectionMethod},
+        utils::ConnectionProtocol,
+    },
 };
 use futures::{
     SinkExt,
@@ -21,11 +25,32 @@ use connection_logic::*;
 #[derive(Debug)]
 pub struct WebSocketConnection {
     stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    server_addr: Option<SocketAddr>,
+    room_id: Option<String>,
 }
 
 impl WebSocketConnection {
-    pub fn new(stream: WebSocketStream<MaybeTlsStream<TcpStream>>) -> Self {
-        Self { stream }
+    pub fn new(
+        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        server_addr: Option<SocketAddr>,
+        room_id: Option<String>,
+    ) -> Self {
+        Self {
+            stream,
+            server_addr,
+            room_id,
+        }
+    }
+
+    pub async fn from_token(token: &str) -> Result<Self, ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::WebSocket || cfg.method != ConnectionMethod::Proxy {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        let room_id = cfg.room_id.ok_or(ConnectionError::InvalidConfig)?;
+        Self::join_room(&cfg.addr, room_id).await
     }
 
     pub async fn create_room(
@@ -37,17 +62,20 @@ impl WebSocketConnection {
         let room_id = register(&mut server_conn).await?;
         debug!("Created a room on the proxy server. room_id={}", room_id);
 
-        Ok((WebSocketConnection::new(server_conn), room_id))
+        Ok((
+            WebSocketConnection::new(server_conn, Some(*server_addr), Some(room_id.clone())),
+            room_id,
+        ))
     }
 
     pub async fn join_room(addr: &SocketAddr, room_id: String) -> Result<Self, ConnectionError> {
         let (mut server_conn, _response) = connect_async(format!("ws://{}", addr)).await?;
         debug!("Connected to the proxy server");
 
-        join_room(&mut server_conn, room_id).await?;
+        join_room(&mut server_conn, room_id.clone()).await?;
         debug!("Joined the room on the proxy server");
 
-        let conn = Self::new(server_conn);
+        let conn = Self::new(server_conn, Some(*addr), Some(room_id));
         Ok(conn)
     }
 
@@ -74,16 +102,38 @@ impl WebSocketConnection {
 
     pub fn split(self) -> (WebSocketSender, WebSocketReceiver) {
         let (sink, stream) = self.stream.split();
-        (WebSocketSender { sink }, WebSocketReceiver { stream })
+        let server_addr = self.server_addr;
+        let room_id = self.room_id;
+        (
+            WebSocketSender {
+                sink,
+                server_addr,
+                room_id: room_id.clone(),
+            },
+            WebSocketReceiver {
+                stream,
+                server_addr,
+                room_id,
+            },
+        )
     }
 
     pub fn reunite(
         sender: WebSocketSender,
         receiver: WebSocketReceiver,
     ) -> Result<Self, ConnectionError> {
-        let stream =
-            SplitSink::reunite(sender.sink, receiver.stream).map_err(|_| ConnectionError::Socket)?;
-        Ok(Self { stream })
+        let stream = SplitSink::reunite(sender.sink, receiver.stream)
+            .map_err(|_| ConnectionError::Socket)?;
+        if sender.room_id != receiver.room_id || sender.server_addr != receiver.server_addr {
+            return Err(ConnectionError::Socket);
+        }
+        let server_addr = sender.server_addr;
+        let room_id = sender.room_id;
+        Ok(Self {
+            stream,
+            server_addr,
+            room_id,
+        })
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ConnectionError> {
@@ -105,10 +155,26 @@ impl WebSocketConnection {
             ))),
         }
     }
+
+    pub fn get_token(&self) -> Result<String, ConnectionError> {
+        let server_addr = self.server_addr.ok_or(ConnectionError::NotConnected)?;
+        let room_id = self.room_id.clone().ok_or(ConnectionError::NotConnected)?;
+
+        let cfg = ConnectionConfig::new(
+            ConnectionMethod::Proxy,
+            ConnectionProtocol::WebSocket,
+            server_addr,
+            Some(room_id),
+        );
+
+        cfg.encode().map_err(ConnectionError::Serialization)
+    }
 }
 
 pub struct WebSocketSender {
     sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>,
+    server_addr: Option<SocketAddr>,
+    room_id: Option<String>,
 }
 
 impl WebSocketSender {
@@ -119,6 +185,8 @@ impl WebSocketSender {
 
 pub struct WebSocketReceiver {
     stream: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    server_addr: Option<SocketAddr>,
+    room_id: Option<String>,
 }
 
 impl WebSocketReceiver {

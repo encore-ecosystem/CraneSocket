@@ -218,7 +218,7 @@ async fn test_ping() {
     let frame = Bytes::from("123");
 
     let stream = TcpStream::connect(server_addr).await.unwrap();
-    let mut stream = TcpConnection::new(stream, None);
+    let mut stream = TcpConnection::new(stream, None, None);
 
     stream
         .send(&ClientMessage::Ping(frame.clone()).as_bytes())
@@ -252,7 +252,7 @@ async fn test_send_unexpected_message() {
     let frame = Bytes::from("123");
 
     let stream = TcpStream::connect(server_addr).await.unwrap();
-    let mut stream = TcpConnection::new(stream, None);
+    let mut stream = TcpConnection::new(stream, None, None);
 
     stream
         .send(&ClientMessage::Pong(frame.clone()).as_bytes())

@@ -2,7 +2,12 @@ use log::{debug, error};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-use crate::socket::{ConnectionError, upnp::UPnPManager, utils::ConnectionProtocol};
+use crate::socket::{
+    ConnectionError,
+    config::{ConnectionConfig, ConnectionMethod},
+    upnp::UPnPManager,
+    utils::ConnectionProtocol,
+};
 
 #[allow(dead_code)]
 pub struct UdpConnection {
@@ -39,6 +44,16 @@ impl UdpConnection {
             socket,
             upnp_manager,
         })
+    }
+
+    pub async fn from_token(&self, token: &str) -> Result<(), ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::Udp || cfg.method != ConnectionMethod::Direct {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        self.connect(&cfg.addr).await
     }
 
     pub async fn connect(&self, addr: &SocketAddr) -> Result<(), ConnectionError> {

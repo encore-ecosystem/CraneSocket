@@ -58,7 +58,7 @@ async fn check_tcp_proxy(server_addr: SocketAddr) -> Result<(), AutoSelectorErro
     let stream = TcpStream::connect(server_addr)
         .await
         .map_err(|_| AutoSelectorError::ServerUnreachable)?;
-    let mut conn = TcpConnection::new(stream, None);
+    let mut conn = TcpConnection::new(stream, None, None);
 
     conn.send(&ClientMessage::Ping(Bytes::new()).as_bytes())
         .await
@@ -108,7 +108,7 @@ async fn check_ws_proxy(server_addr: SocketAddr) -> Result<(), AutoSelectorError
     let (stream, _) = tokio_tungstenite::connect_async(url)
         .await
         .map_err(|_| AutoSelectorError::Connect)?;
-    let mut conn = WebSocketConnection::new(stream);
+    let mut conn = WebSocketConnection::new(stream, None, None);
 
     conn.send(ClientMessage::Ping(Bytes::new()))
         .await

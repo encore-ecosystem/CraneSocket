@@ -5,7 +5,11 @@ use tokio::{
     net::TcpStream,
 };
 
-use crate::socket::ConnectionError;
+use crate::socket::{
+    ConnectionError,
+    config::{ConnectionConfig, ConnectionMethod},
+    utils::ConnectionProtocol,
+};
 
 pub struct TcpConnection {
     stream: TcpStream,
@@ -14,6 +18,16 @@ pub struct TcpConnection {
 impl TcpConnection {
     pub fn new(stream: TcpStream) -> Self {
         Self { stream }
+    }
+
+    pub async fn from_token(token: &str) -> Result<Self, ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::Tcp || cfg.method != ConnectionMethod::Direct {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        Self::connect(&cfg.addr).await
     }
 
     pub async fn connect(addr: &SocketAddr) -> Result<Self, ConnectionError> {

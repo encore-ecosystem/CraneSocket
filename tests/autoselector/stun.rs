@@ -1,7 +1,7 @@
 use upnpsocket::socket::{
     common::STUN_HOSTS,
     utils::{
-        AutoSelectorConfig, AutoSelectorError, ConnectionMethod, ConnectionProtocol,
+        AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,
         auto_select_conn_method,
     },
 };
@@ -13,7 +13,7 @@ async fn test_autoselector_stun_success() {
         .stun_servers(STUN_HOSTS.to_vec());
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Stun(STUN_HOSTS[0].to_owned()));
+    assert_eq!(method, ListeningMethod::Stun(STUN_HOSTS[0].to_owned()));
 }
 
 #[tokio::test]

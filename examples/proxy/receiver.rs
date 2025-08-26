@@ -15,6 +15,7 @@ async fn main() {
         .unwrap();
 
     println!("Room ID: {}", room_id);
+    println!("Token: {}", ws_stream.get_token().unwrap());
 
     ws_stream.wait_for_client().await.unwrap();
 

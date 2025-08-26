@@ -60,7 +60,7 @@ impl<'a> AutoSelectorConfig<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ConnectionMethod {
+pub enum ListeningMethod {
     UPnP,
     Stun(String),
     Proxy(SocketAddr),
@@ -68,16 +68,16 @@ pub enum ConnectionMethod {
 
 pub async fn auto_select_conn_method<'a>(
     cfg: &AutoSelectorConfig<'a>,
-) -> Result<ConnectionMethod, AutoSelectorError> {
+) -> Result<ListeningMethod, AutoSelectorError> {
     match cfg.protocol {
         ConnectionProtocol::Tcp => {
             if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
+                return Ok(ListeningMethod::UPnP);
             }
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
+                    Ok(addr) => return Ok(ListeningMethod::Proxy(addr)),
                     Err(e) => {
                         info!("Could not connect to proxy: {}", e);
                     }
@@ -88,12 +88,12 @@ pub async fn auto_select_conn_method<'a>(
         }
         ConnectionProtocol::Udp => {
             if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
+                return Ok(ListeningMethod::UPnP);
             }
 
             if !cfg.stun.is_empty() {
                 match is_stun_available(&cfg.stun).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Stun(addr)),
+                    Ok(addr) => return Ok(ListeningMethod::Stun(addr)),
                     Err(e) => {
                         info!("Could not connect to stun: {}", e);
                     }
@@ -102,7 +102,7 @@ pub async fn auto_select_conn_method<'a>(
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
+                    Ok(addr) => return Ok(ListeningMethod::Proxy(addr)),
                     Err(e) => {
                         info!("Could not connect to proxy: {}", e);
                     }
@@ -113,12 +113,12 @@ pub async fn auto_select_conn_method<'a>(
         }
         ConnectionProtocol::WebSocket => {
             if cfg.upnp && is_upnp_available() {
-                return Ok(ConnectionMethod::UPnP);
+                return Ok(ListeningMethod::UPnP);
             }
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
-                    Ok(addr) => return Ok(ConnectionMethod::Proxy(addr)),
+                    Ok(addr) => return Ok(ListeningMethod::Proxy(addr)),
                     Err(e) => {
                         info!("Could not connect to proxy: {}", e);
                     }

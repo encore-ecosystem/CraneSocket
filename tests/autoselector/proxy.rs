@@ -4,7 +4,7 @@ use tokio::sync::oneshot;
 use upnpsocket::{
     server::{TcpProxyServer, UdpProxyServer, WebSocketProxyServer},
     socket::utils::{
-        AutoSelectorConfig, AutoSelectorError, ConnectionMethod, ConnectionProtocol,
+        AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,
         auto_select_conn_method,
     },
 };
@@ -29,7 +29,7 @@ async fn test_autoselector_tcp_proxy_success() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     shutdown_tx.send(()).unwrap();
 }
@@ -77,7 +77,7 @@ async fn test_autoselector_websocket_proxy_success() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     shutdown_tx.send(()).unwrap();
 }
@@ -125,7 +125,7 @@ async fn test_autoselector_udp_proxy_success() {
         .add_proxy_server(server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(server_addr));
 
     shutdown_tx.send(()).unwrap();
 }
@@ -209,7 +209,7 @@ async fn test_autoselector_mixed_proxy_protocols() {
         .add_proxy_server(udp_server_addr);
     let method = auto_select_conn_method(&cfg).await.unwrap();
 
-    assert_eq!(method, ConnectionMethod::Proxy(udp_server_addr));
+    assert_eq!(method, ListeningMethod::Proxy(udp_server_addr));
 
     websocket_shutdown_tx.send(()).unwrap();
     udp_shutdown_tx.send(()).unwrap();

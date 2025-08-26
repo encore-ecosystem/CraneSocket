@@ -7,7 +7,11 @@ use tokio_tungstenite::{
     tungstenite::{Message, protocol::CloseFrame},
 };
 
-use crate::socket::ConnectionError;
+use crate::socket::{
+    ConnectionError,
+    config::{ConnectionConfig, ConnectionMethod},
+    utils::ConnectionProtocol,
+};
 
 type WebSocketSplitStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
 type WebSocketSplitSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
@@ -19,6 +23,16 @@ pub struct WebSocketConnection {
 impl WebSocketConnection {
     pub fn new(stream: WebSocketStream<MaybeTlsStream<TcpStream>>) -> Self {
         Self { stream }
+    }
+
+    pub async fn from_token(token: &str) -> Result<Self, ConnectionError> {
+        let cfg = ConnectionConfig::decode(token).map_err(ConnectionError::Serialization)?;
+
+        if cfg.protocol != ConnectionProtocol::WebSocket || cfg.method != ConnectionMethod::Direct {
+            return Err(ConnectionError::InvalidConfig);
+        }
+
+        Self::connect(&cfg.addr).await
     }
 
     pub async fn connect(addr: &SocketAddr) -> Result<Self, ConnectionError> {
