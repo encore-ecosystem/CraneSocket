@@ -1,7 +1,5 @@
 use std::net::SocketAddr;
 
-use tokio::sync::{mpsc, oneshot};
-use tokio_tungstenite::{connect_async, tungstenite::Bytes};
 use crane_socket::{
     server::{
         WebSocketProxyServer,
@@ -9,6 +7,8 @@ use crane_socket::{
     },
     socket::proxy::WebSocketConnection,
 };
+use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::{connect_async, tungstenite::Bytes};
 
 use crate::{MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
 

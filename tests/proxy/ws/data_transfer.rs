@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use tokio::sync::{mpsc, oneshot};
 
-use tokio_tungstenite::tungstenite::Bytes;
 use crane_socket::{
     server::{
         WebSocketProxyServer,
@@ -10,6 +9,7 @@ use crane_socket::{
     },
     socket::proxy::WebSocketConnection,
 };
+use tokio_tungstenite::tungstenite::Bytes;
 
 use crate::{CHUNK_SIZE, FILE_SIZE, MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
 

@@ -1,13 +1,13 @@
 use std::net::SocketAddr;
 
-use tokio::sync::oneshot;
 use crane_socket::{
     server::{TcpProxyServer, UdpProxyServer, WebSocketProxyServer},
     socket::utils::{
-        AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,
+        AutoSelectorConfig, AutoSelectorError, ConnectionProtocol, ListeningMethod,
         auto_select_conn_method,
     },
 };
+use tokio::sync::oneshot;
 
 use crate::{TEST_SLEEP_TIME_MS, timed};
 

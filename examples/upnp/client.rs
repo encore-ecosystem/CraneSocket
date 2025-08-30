@@ -1,6 +1,6 @@
+use crane_socket::socket::upnp::UdpConnection;
 use dotenv::dotenv;
 use std::net::SocketAddr;
-use crane_socket::socket::upnp::UdpConnection;
 
 #[tokio::main]
 async fn main() {

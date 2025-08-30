@@ -1,7 +1,5 @@
 use std::net::SocketAddr;
 
-use tokio::sync::{mpsc, oneshot};
-use tokio_tungstenite::tungstenite::Bytes;
 use crane_socket::{
     server::{
         UdpProxyServer,
@@ -9,6 +7,8 @@ use crane_socket::{
     },
     socket::proxy::UdpConnection,
 };
+use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::tungstenite::Bytes;
 
 use crate::{MPSC_CHANNEL_CAPACITY, TEST_SLEEP_TIME_MS, timed};
 

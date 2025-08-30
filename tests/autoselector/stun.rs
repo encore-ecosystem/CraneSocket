@@ -1,7 +1,7 @@
 use crane_socket::socket::{
     common::STUN_HOSTS,
     utils::{
-        AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,
+        AutoSelectorConfig, AutoSelectorError, ConnectionProtocol, ListeningMethod,
         auto_select_conn_method,
     },
 };

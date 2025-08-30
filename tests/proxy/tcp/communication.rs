@@ -1,7 +1,5 @@
 use std::net::SocketAddr;
 
-use tokio::sync::{mpsc, oneshot};
-use tokio_tungstenite::tungstenite::Bytes;
 use crane_socket::{
     server::{
         TcpProxyServer,
@@ -9,6 +7,8 @@ use crane_socket::{
     },
     socket::proxy::TcpConnection,
 };
+use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::tungstenite::Bytes;
 
 use tokio::net::TcpStream;
 

@@ -1,7 +1,5 @@
 use std::net::SocketAddr;
 
-use tokio::sync::oneshot;
-use tokio_tungstenite::tungstenite::Bytes;
 use crane_socket::{
     server::{
         TcpProxyServer, UdpProxyServer, WebSocketProxyServer,
@@ -9,9 +7,11 @@ use crane_socket::{
     },
     socket::utils::{
         AutoSelectorConfig, AutoTcpListener, AutoUdpListener, AutoWebsocketListener,
-        ListeningMethod, ConnectionProtocol, auto_select_conn_method,
+        ConnectionProtocol, ListeningMethod, auto_select_conn_method,
     },
 };
+use tokio::sync::oneshot;
+use tokio_tungstenite::tungstenite::Bytes;
 
 use crate::{TEST_SLEEP_TIME_MS, timed};
 
