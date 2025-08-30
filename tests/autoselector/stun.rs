@@ -1,4 +1,4 @@
-use upnpsocket::socket::{
+use crane_socket::socket::{
     common::STUN_HOSTS,
     utils::{
         AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,

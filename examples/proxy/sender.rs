@@ -1,6 +1,6 @@
 use log::{debug, error};
 use tokio::{fs::File, io::AsyncReadExt, sync::oneshot};
-use upnpsocket::{
+use crane_socket::{
     server::message::{ClientMessage, ServerMessage},
     socket::proxy::WebSocketConnection,
 };

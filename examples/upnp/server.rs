@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use log::info;
 use tokio::{signal, sync::oneshot};
-use upnpsocket::socket::upnp::UdpListener;
+use crane_socket::socket::upnp::UdpListener;
 
 #[tokio::main]
 async fn main() {

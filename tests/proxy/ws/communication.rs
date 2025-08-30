@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::{connect_async, tungstenite::Bytes};
-use upnpsocket::{
+use crane_socket::{
     server::{
         WebSocketProxyServer,
         message::{ClientMessage, ServerMessage},

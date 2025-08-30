@@ -1,5 +1,5 @@
 use tokio::{signal, sync::oneshot};
-use upnpsocket::server::WebSocketProxyServer;
+use crane_socket::server::WebSocketProxyServer;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 12)]
 async fn main() {

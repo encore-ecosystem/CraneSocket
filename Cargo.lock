@@ -324,6 +324,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "crane-socket"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "criterion",
+ "dotenv",
+ "easy-upnp",
+ "env_logger",
+ "external-ip",
+ "futures",
+ "futures-util",
+ "igd",
+ "log",
+ "postcard",
+ "rand 0.9.2",
+ "serde",
+ "stunclient",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "crc"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2392,30 +2416,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "upnpsocket"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64",
- "criterion",
- "dotenv",
- "easy-upnp",
- "env_logger",
- "external-ip",
- "futures",
- "futures-util",
- "igd",
- "log",
- "postcard",
- "rand 0.9.2",
- "serde",
- "stunclient",
- "thiserror 2.0.12",
- "tokio",
- "tokio-tungstenite",
-]
 
 [[package]]
 name = "url"

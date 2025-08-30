@@ -1,7 +1,7 @@
 use log::debug;
 use tokio::{fs::File, io::AsyncWriteExt};
 
-use upnpsocket::{server::message::ServerMessage, socket::proxy::WebSocketConnection};
+use crane_socket::{server::message::ServerMessage, socket::proxy::WebSocketConnection};
 
 #[tokio::main]
 async fn main() {

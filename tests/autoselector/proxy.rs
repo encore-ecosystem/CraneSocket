@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use tokio::sync::oneshot;
-use upnpsocket::{
+use crane_socket::{
     server::{TcpProxyServer, UdpProxyServer, WebSocketProxyServer},
     socket::utils::{
         AutoSelectorConfig, AutoSelectorError, ListeningMethod, ConnectionProtocol,

@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use tokio::sync::oneshot;
 
-use upnpsocket::{
+use crane_socket::{
     server::{UdpProxyServer, message::ServerMessage},
     socket::proxy::UdpConnection,
 };
