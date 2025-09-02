@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crate::socket::utils::ConnectionProtocol;
 
-use log::info;
+use log::{debug, info};
 
 mod error;
 mod logic;
@@ -74,6 +74,7 @@ pub async fn auto_select_conn_method<'a>(
             if cfg.upnp && is_upnp_available() {
                 return Ok(ListeningMethod::UPnP);
             }
+            debug!("Could not use UPnP");
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
@@ -83,6 +84,7 @@ pub async fn auto_select_conn_method<'a>(
                     }
                 }
             }
+            debug!("Could not use proxy");
 
             Err(AutoSelectorError::NoAvailableMethod)
         }
@@ -90,6 +92,7 @@ pub async fn auto_select_conn_method<'a>(
             if cfg.upnp && is_upnp_available() {
                 return Ok(ListeningMethod::UPnP);
             }
+            debug!("Could not use UPnP");
 
             if !cfg.stun.is_empty() {
                 match is_stun_available(&cfg.stun).await {
@@ -99,6 +102,7 @@ pub async fn auto_select_conn_method<'a>(
                     }
                 }
             }
+            debug!("Could not use STUN");
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
@@ -108,6 +112,7 @@ pub async fn auto_select_conn_method<'a>(
                     }
                 }
             }
+            debug!("Could not use proxy");
 
             Err(AutoSelectorError::NoAvailableMethod)
         }
@@ -115,6 +120,7 @@ pub async fn auto_select_conn_method<'a>(
             if cfg.upnp && is_upnp_available() {
                 return Ok(ListeningMethod::UPnP);
             }
+            debug!("Could not use UPnP");
 
             if !cfg.proxy.is_empty() {
                 match is_proxy_available(&cfg.protocol, &cfg.proxy).await {
@@ -124,6 +130,7 @@ pub async fn auto_select_conn_method<'a>(
                     }
                 }
             }
+            debug!("Could not use proxy");
 
             Err(AutoSelectorError::NoAvailableMethod)
         }
