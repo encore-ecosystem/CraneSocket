@@ -2,7 +2,10 @@ use std::{io, net::SocketAddr};
 use stunclient::Error as StunClientError;
 use thiserror::Error;
 
-use crate::{server::message::MessageError, socket::upnp::UPnPManagerError};
+use crate::{
+    server::message::MessageError,
+    socket::{crypto::CryptoError, upnp::UPnPManagerError},
+};
 
 #[derive(Error, Debug)]
 pub enum StunError {
@@ -28,6 +31,8 @@ pub enum ListenerError {
     Serialization(postcard::Error),
     #[error("InvalidConfig")]
     InvalidConfig,
+    #[error("Crypto")]
+    Crypto(#[from] CryptoError),
 }
 
 #[derive(Error, Debug)]
@@ -56,4 +61,6 @@ pub enum ConnectionError {
     Serialization(postcard::Error),
     #[error("InvalidConfig")]
     InvalidConfig,
+    #[error("Crypto")]
+    Crypto(#[from] CryptoError),
 }

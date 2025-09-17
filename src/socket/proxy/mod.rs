@@ -1,9 +1,8 @@
 mod common;
-mod connections;
-mod listeners;
+mod tcp;
+mod udp;
+mod ws;
 
-pub use {
-    connections::ReadHalf, connections::TcpConnection, connections::UdpConnection,
-    connections::WebSocketConnection, connections::WriteHalf,
-};
-pub use {listeners::TcpListener, listeners::UdpListener, listeners::WebSocketListener};
+pub use tcp::*;
+pub use udp::*;
+pub use ws::*;

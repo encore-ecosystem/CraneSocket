@@ -10,7 +10,7 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let socket = WebSocketConnection::from_token("AQEAfwAAAcA+AQhVVEVxZzN1Ug==")
+    let socket = WebSocketConnection::from_token("AQEAfwAAAcA+AQh5VXJxZU16UA==")
         .await
         .unwrap();
 
@@ -32,7 +32,7 @@ async fn main() {
         }
     });
 
-    let file_path = "/home/conk/Files/Programming/123.txt";
+    let file_path = "/home/conk/Files/Programming/gemma-3-1b-it-Q4_K_M.gguf";
     let mut file = File::open(file_path).await.unwrap();
 
     let file_size = file.metadata().await.unwrap().len();
@@ -41,7 +41,7 @@ async fn main() {
         .await
         .unwrap();
 
-    let mut buffer = vec![0u8; 1024 * 1024];
+    let mut buffer = vec![0u8; 65535 - 100];
     let mut total_sent = 0;
     loop {
         let bytes_read = file.read(&mut buffer).await.unwrap();

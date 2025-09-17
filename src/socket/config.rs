@@ -18,6 +18,7 @@ pub struct ConnectionConfig {
     pub protocol: ConnectionProtocol,
     pub addr: SocketAddr,
     pub room_id: Option<String>,
+    // pub public_key: 
 }
 
 impl ConnectionConfig {

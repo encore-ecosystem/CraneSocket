@@ -108,7 +108,7 @@ async fn check_ws_proxy(server_addr: SocketAddr) -> Result<(), AutoSelectorError
     let (stream, _) = tokio_tungstenite::connect_async(url)
         .await
         .map_err(|_| AutoSelectorError::Connect)?;
-    let mut conn = WebSocketConnection::new(stream, None, None);
+    let mut conn = WebSocketConnection::new(stream, None, None, None);
 
     conn.send(ClientMessage::Ping(Bytes::new()))
         .await

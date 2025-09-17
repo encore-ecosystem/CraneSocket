@@ -5,14 +5,19 @@ use crate::socket::{
     utils::ConnectionProtocol,
 };
 
-mod connections;
 mod error;
-pub mod listeners;
-mod ports;
 
-pub use connections::{TcpConnection, UdpConnection, WebSocketConnection};
+mod ports;
+mod tcp;
+mod udp;
+mod utils;
+mod ws;
+
 pub use error::*;
-pub use listeners::{TcpListener, UdpListener, WebSocketListener};
+pub use tcp::{TcpConnection, TcpListener};
+pub use udp::{UdpConnection, UdpListener};
+pub use utils::*;
+pub use ws::{WebSocketConnection, WebSocketListener};
 
 #[derive(Debug)]
 pub struct UPnPManager {

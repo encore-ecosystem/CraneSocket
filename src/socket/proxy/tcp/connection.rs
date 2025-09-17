@@ -14,13 +14,13 @@ use crate::{
     socket::{
         ConnectionError,
         config::{ConnectionConfig, ConnectionMethod},
-        proxy::common::{is_tag_only_message, validate_tag_with_payload},
+        proxy::{
+            common::{is_tag_only_message, validate_tag_with_payload},
+            tcp::connection_logic::{join_room, register, wait_for_another_client},
+        },
         utils::ConnectionProtocol,
     },
 };
-
-mod connection_logic;
-use connection_logic::*;
 
 pub struct TcpConnection {
     stream: TcpStream,

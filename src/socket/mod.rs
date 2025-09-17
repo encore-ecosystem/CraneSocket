@@ -1,5 +1,6 @@
 pub mod common;
 pub mod config;
+pub mod crypto;
 mod error;
 pub mod proxy;
 pub mod upnp;

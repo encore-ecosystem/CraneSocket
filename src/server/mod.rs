@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, broadcast};
 
-use crate::server::common::{TcpListener, WebSocketListener, close_server};
+use crate::server::common::close_server;
 use crate::server::constant::SHUTDOWN_CHANNEL_CAPACITY;
 use crate::server::error::ProxyServerError;
 use crate::server::message::ServerMessage;
@@ -15,8 +15,7 @@ use crate::server::transport::{TcpTransport, UdpTransport};
 use crate::socket::proxy::TcpListener as ProxyTcpListener;
 use crate::socket::proxy::UdpListener as ProxyUdpListener;
 use crate::socket::proxy::WebSocketListener as ProxyWebSocketListener;
-use crate::socket::upnp::WebSocketListener as UPnPWebSocketListener;
-use crate::socket::upnp::{TcpListener as UPnPTcpListener, UPnPManager};
+use crate::socket::upnp::UPnPManager;
 use crate::socket::utils::ConnectionProtocol;
 
 pub mod common;
@@ -32,8 +31,10 @@ pub type Room = HashMap<SocketAddr, Sender>;
 pub type Rooms = Arc<RwLock<HashMap<String, Room>>>;
 pub type Client2Room = Arc<RwLock<HashMap<SocketAddr, String>>>;
 
+#[allow(dead_code)]
 pub struct WebSocketProxyServer {
-    listener: WebSocketListener,
+    listener: ProxyWebSocketListener,
+    upnp_manager: Option<UPnPManager>,
     rooms: Rooms,
     client2room: Client2Room,
 }
@@ -42,16 +43,20 @@ impl WebSocketProxyServer {
     pub async fn bind(addr: &SocketAddr, use_upnp: bool) -> Result<Self, ProxyServerError> {
         let rooms: Rooms = Arc::new(RwLock::new(HashMap::new()));
         let client2room: Client2Room = Arc::new(RwLock::new(HashMap::new()));
-        let listener = match use_upnp {
-            true => {
-                WebSocketListener::UPnPWebSocketListener(UPnPWebSocketListener::listen(addr).await?)
-            }
-            false => WebSocketListener::ProxyWebSocketListener(
-                ProxyWebSocketListener::listen(addr).await?,
+        let listener = ProxyWebSocketListener::listen(addr).await?;
+
+        let upnp_manager = match use_upnp {
+            true => Some(
+                UPnPManager::new(addr.port(), ConnectionProtocol::WebSocket).map_err(|e| {
+                    ProxyServerError::Listener(crate::socket::ListenerError::Upnp(e))
+                })?,
             ),
+            false => None,
         };
+
         Ok(Self {
             listener,
+            upnp_manager,
             rooms,
             client2room,
         })
@@ -106,8 +111,10 @@ impl WebSocketProxyServer {
     }
 }
 
+#[allow(dead_code)]
 pub struct TcpProxyServer {
-    listener: TcpListener,
+    listener: ProxyTcpListener,
+    upnp_manager: Option<UPnPManager>,
     rooms: Rooms,
     client2room: Client2Room,
 }
@@ -116,12 +123,19 @@ impl TcpProxyServer {
     pub async fn bind(addr: &SocketAddr, use_upnp: bool) -> Result<Self, ProxyServerError> {
         let rooms: Rooms = Arc::new(RwLock::new(HashMap::new()));
         let client2room: Client2Room = Arc::new(RwLock::new(HashMap::new()));
-        let listener = match use_upnp {
-            true => TcpListener::UPnPTcpListener(UPnPTcpListener::listen(addr).await?),
-            false => TcpListener::ProxyTcpListener(ProxyTcpListener::listen(addr).await?),
+        let listener = ProxyTcpListener::listen(addr).await?;
+        let upnp_manager = match use_upnp {
+            true => Some(
+                UPnPManager::new(addr.port(), ConnectionProtocol::Tcp).map_err(|e| {
+                    ProxyServerError::Listener(crate::socket::ListenerError::Upnp(e))
+                })?,
+            ),
+            false => None,
         };
+
         Ok(Self {
             listener,
+            upnp_manager,
             rooms,
             client2room,
         })

@@ -1,34 +1,46 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
-use tokio::net::TcpStream;
+
+use log::debug;
+use tokio::net::TcpListener;
+use tokio_tungstenite::{MaybeTlsStream, accept_async};
 
 use crate::socket::ListenerError;
 use crate::socket::config::{ConnectionConfig, ConnectionMethod};
-use crate::socket::upnp::UPnPManager;
-use crate::socket::upnp::listeners::upnp::init_upnp;
+use crate::socket::upnp::init_upnp;
+use crate::socket::upnp::ws::crypto::establish_encryption;
+use crate::socket::upnp::{UPnPManager, WebSocketConnection};
 use crate::socket::utils::ConnectionProtocol;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct TcpListener {
-    upnp_manager: UPnPManager,
-    listener: tokio::net::TcpListener,
+pub struct WebSocketListener {
+    upnp_manager: Option<UPnPManager>,
+    listener: TcpListener,
 }
 
-impl TcpListener {
-    pub async fn listen(addr: &SocketAddr) -> Result<Self, ListenerError> {
-        let listener = tokio::net::TcpListener::bind(&addr).await?;
+impl WebSocketListener {
+    pub async fn listen(local_addr: &SocketAddr) -> Result<Self, ListenerError> {
+        let listener = TcpListener::bind(&local_addr).await?;
         let upnp_manager =
             init_upnp(listener.local_addr()?.port(), ConnectionProtocol::Tcp).await?;
 
-        Ok(TcpListener {
-            upnp_manager,
+        Ok(Self {
+            upnp_manager: Some(upnp_manager),
             listener,
         })
     }
 
-    pub async fn accept(&self) -> Result<(TcpStream, SocketAddr), ListenerError> {
-        Ok(self.listener.accept().await?)
+    pub async fn accept(&self) -> Result<(WebSocketConnection, SocketAddr), ListenerError> {
+        let (stream, addr) = self.listener.accept().await?;
+        let stream = MaybeTlsStream::Plain(stream);
+        let mut stream = accept_async(stream).await?;
+
+        let noise = establish_encryption(&mut stream, false).await?;
+        debug!("Noise handshake done");
+
+        let stream = WebSocketConnection::new(stream, noise);
+        Ok((stream, addr))
     }
 
     pub fn get_local_addr(&self) -> Result<SocketAddr, ListenerError> {
@@ -47,7 +59,7 @@ impl TcpListener {
         let server_addr = self.get_external_addr().await?;
         let cfg = ConnectionConfig::new(
             ConnectionMethod::Direct,
-            ConnectionProtocol::Tcp,
+            ConnectionProtocol::WebSocket,
             server_addr,
             None,
         );

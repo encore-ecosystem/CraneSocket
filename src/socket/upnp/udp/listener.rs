@@ -4,7 +4,7 @@ use tokio::net::UdpSocket;
 use crate::socket::{
     ListenerError,
     config::{ConnectionConfig, ConnectionMethod},
-    upnp::{UPnPManager, listeners::upnp::init_upnp},
+    upnp::{UPnPManager, init_upnp},
     utils::ConnectionProtocol,
 };
 

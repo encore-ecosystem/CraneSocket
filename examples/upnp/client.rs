@@ -1,25 +1,17 @@
-use crane_socket::socket::upnp::UdpConnection;
+use crane_socket::socket::upnp::WebSocketConnection;
 use dotenv::dotenv;
-use std::net::SocketAddr;
+use tokio_tungstenite::tungstenite::Message;
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     env_logger::init();
 
-    let socket = UdpConnection::bind(&"0.0.0.0:0".parse().unwrap())
-        .await
-        .unwrap();
-    socket
-        .connect(&"127.0.0.1:8080".parse::<SocketAddr>().unwrap())
-        .await
-        .unwrap();
+    let server_addr = "127.0.0.1:8000".parse().unwrap();
+    let stream = WebSocketConnection::connect(&server_addr).await.unwrap();
 
-    let msg = b"Hello!";
-    socket.send(msg).await.unwrap();
-    println!("Sent: {:?}", String::from_utf8_lossy(msg));
+    let (mut sender, _) = stream.split();
 
-    let mut buf = [0u8; 1024];
-    let len = socket.recv(&mut buf).await.unwrap();
-    println!("Received: {:.?}", String::from_utf8_lossy(&buf[..len]));
+    let msg = [1, 2, 3];
+    sender.send(Message::binary(msg.to_vec())).await.unwrap();
 }
